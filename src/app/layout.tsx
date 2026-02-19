@@ -1,6 +1,7 @@
 import './globals.css';
 import { Providers } from './providers';
-import '@coinbase/onchainkit/styles.css';
+
+export const dynamic = "force-dynamic";
 
 export default function RootLayout({
   children,
