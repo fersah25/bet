@@ -16,13 +16,41 @@ interface HistoryPoint {
   [candidateId: string]: number; // Percentage (0-100) at this tick
 }
 
-// --- Seed Data (Fallback / Initial Insert) ---
+// --- Seed Data (Fallback) ---
 const SEED_CANDIDATES = [
   { name: 'Kevin Warsh', initials: 'KW', color: '#00d395', pool_amount: 10 },
   { name: 'Judy Shelton', initials: 'JS', color: '#3b82f6', pool_amount: 10 },
   { name: 'Rick Rieder', initials: 'RR', color: '#a855f7', pool_amount: 10 },
   { name: 'Scott Bessent', initials: 'SB', color: '#f43f5e', pool_amount: 10 },
 ];
+
+// --- Helpers ---
+
+// Generate a smooth SVG path from points
+const getSmoothPath = (points: [number, number][]) => {
+  if (points.length < 2) return '';
+
+  const command = (point: [number, number], i: number, a: [number, number][]) => {
+    const [x, y] = point;
+    if (i === 0) return `M ${x},${y}`;
+
+    // Cubic Bezier Control Points Logic (Simplified)
+    const [x0, y0] = a[i - 1];
+    const [x1, y1] = point;
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const ctrlLen = len * 0.2; // Tension
+
+    // For a truly smooth curve we need next/prev points, but for a simple visual:
+    // We'll just doing simple lines for now if the math is too complex for a single file,
+    // BUT user asked for smooth. Let's use a standard "catmull-rom to bezier" or similar if possible.
+    // Actually, let's stick to a simple strategy:
+    // C (mid_x), y0, (mid_x), y1, x1, y1
+    const midX = (x0 + x1) / 2;
+    return `C ${midX},${y0} ${midX},${y1} ${x1},${y1}`;
+  };
+
+  return points.map(command).join(' ');
+};
 
 // --- Components ---
 
@@ -33,7 +61,13 @@ const MultiLineChart = ({
   history: HistoryPoint[];
   candidates: Candidate[]
 }) => {
-  if (!history || history.length < 2) return null;
+  if (!history || history.length < 2) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400 text-sm">
+        Loading Chart...
+      </div>
+    );
+  }
 
   const width = 100;
   const height = 40;
@@ -49,22 +83,26 @@ const MultiLineChart = ({
       <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} stroke="#f3f4f6" strokeWidth="0.5" />
 
       {candidates.map((c) => {
-        const points = history
-          .map((point, index) => {
-            const x = (index / (history.length - 1)) * width;
-            const y = height - ((point[c.id] - min) / (max - min)) * height;
-            return `${x},${y}`;
-          })
-          .join(' ');
+        // Map history to [x, y] coordinates
+        const points: [number, number][] = history.map((point, index) => {
+          const x = (index / (history.length - 1)) * width;
+          const y = height - ((point[c.id] - min) / (max - min)) * height;
+          return [x, y];
+        });
+
+        // Generate Smooth Path
+        const d = getSmoothPath(points);
 
         return (
-          <polyline
+          <path
             key={c.id}
+            d={d}
             fill="none"
             stroke={c.color}
             strokeWidth="2"
-            points={points}
             vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             className="transition-all duration-300 ease-in-out"
           />
         );
@@ -75,7 +113,7 @@ const MultiLineChart = ({
 
 export default function Home() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [history, setHistory] = useState<HistoryPoint[]>([]); // We start empty, will calc initial point on load
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -94,48 +132,70 @@ export default function Home() {
         .select('*')
         .order('id', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching candidates:', error);
-        // Fallback? Or just show empty?
-      }
+      if (error) console.error('Error fetching candidates:', error);
 
       if (!data || data.length === 0) {
-        // Seed if empty (Development Helper)
         console.log('Seeding Database...');
-        const { data: inserted, error: insertError } = await supabase
+        const { data: inserted } = await supabase
           .from('markets')
           .insert(SEED_CANDIDATES)
           .select();
-
         if (inserted) data = inserted;
       }
 
       if (data) {
-        // Map DB columns to our Interface
         const mappedCandidates: Candidate[] = data.map((item: any) => ({
           id: item.id,
           name: item.name,
           initials: item.initials,
           color: item.color,
-          pool: item.pool_amount || 10, // Default to 10 if null
+          pool: item.pool_amount || 10,
         }));
 
         setCandidates(mappedCandidates);
 
-        // Set initial selection if none
         if (!selectedCandidateId && mappedCandidates.length > 0) {
           setSelectedCandidateId(mappedCandidates[0].id);
         }
 
-        // Initialize History with current state
+        // --- Generate Mock History ---
+        // Goal: Create a trajectory from 25% (equal) to Current %
+        const steps = 15;
+        const newHistory: HistoryPoint[] = [];
         const total = mappedCandidates.reduce((sum, c) => sum + c.pool, 0);
-        const initialPoint: HistoryPoint = {};
+
+        // Start Point (Equal)
+        const startPoint: HistoryPoint = {};
+        mappedCandidates.forEach(c => startPoint[c.id] = 25);
+
+        // End Point (Current)
+        const endPoint: HistoryPoint = {};
         mappedCandidates.forEach(c => {
-          initialPoint[c.id] = total > 0 ? (c.pool / total) * 100 : 25;
+          endPoint[c.id] = total > 0 ? (c.pool / total) * 100 : 25;
         });
-        // Keep history length reasonable, or mostly just show recent updates from this session?
-        // For now, reset history on reload to just the current state line.
-        setHistory([initialPoint, initialPoint]);
+
+        // Interpolate
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps; // 0 to 1
+          const point: HistoryPoint = {};
+
+          mappedCandidates.forEach(c => {
+            const startVal = startPoint[c.id];
+            const endVal = endPoint[c.id];
+
+            // Simple Linear + slight random jitter for "organic" look
+            // But keep end point exact
+            const jitter = i === steps || i === 0 ? 0 : (Math.random() - 0.5) * 2;
+
+            // Easing (SmoothStep)
+            const smoothT = t * t * (3 - 2 * t);
+
+            point[c.id] = startVal + (endVal - startVal) * smoothT + jitter;
+          });
+          newHistory.push(point);
+        }
+
+        setHistory(newHistory);
       }
 
     } catch (err) {
@@ -151,20 +211,15 @@ export default function Home() {
   const getCandidateStats = (c: Candidate) => {
     const probability = totalPool > 0 ? c.pool / totalPool : 0;
     const probabilityPercent = probability * 100;
-    // Multiplier: TotalPool / CandidatePool
     const multiplier = c.pool > 0 ? totalPool / c.pool : 0;
 
-    return {
-      probability,
-      probabilityPercent,
-      multiplier,
-    };
+    return { probability, probabilityPercent, multiplier };
   };
 
   const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId) || candidates[0];
   const selectedStats = selectedCandidate ? getCandidateStats(selectedCandidate) : { probability: 0, probabilityPercent: 0, multiplier: 0 };
 
-  // Estimates based on input
+  // Estimates
   const amountNum = parseFloat(amount) || 0;
   const projectedTotal = totalPool + amountNum;
   const projectedPool = (selectedCandidate?.pool || 0) + amountNum;
@@ -178,28 +233,22 @@ export default function Home() {
     const tradeAmount = parseFloat(amount);
 
     try {
-      // 1. Optimistic Update (Optional) - skipped for simplicity, let's wait for DB
-
-      // 2. DB Update
       const newPoolAmount = selectedCandidate.pool + tradeAmount;
 
       const { error } = await supabase
-        .from('markets') // User specified 'markets'
+        .from('markets')
         .update({ pool_amount: newPoolAmount })
         .eq('id', selectedCandidate.id);
 
       if (error) throw error;
 
-      // 3. Re-fetch to get latest state (including other simul-trades if any)
-      // ideally enable realtime subscription here, but re-fetching is safer for now.
-      // We can manually update local state to be faster though.
-
+      // Optimistic / Manual Update
       const newCandidates = candidates.map(c =>
         c.id === selectedCandidate.id ? { ...c, pool: newPoolAmount } : c
       );
       setCandidates(newCandidates);
 
-      // 4. Update History
+      // Update History
       const newTotal = newCandidates.reduce((sum, c) => sum + c.pool, 0);
       const newHistoryPoint: HistoryPoint = {};
       newCandidates.forEach(c => {
@@ -211,7 +260,6 @@ export default function Home() {
 
     } catch (err) {
       console.error('Trade failed:', err);
-      alert('Trade failed. check console.');
     } finally {
       setIsTrading(false);
     }
@@ -266,7 +314,7 @@ export default function Home() {
                 history={history}
                 candidates={candidates}
               />
-              {/* Legend */}
+              {/* Legend Overlay */}
               <div className="absolute top-4 left-4 bg-white/90 backdrop-blur p-2 rounded-lg shadow-sm border border-gray-100">
                 <div className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">Live Odds</div>
                 {candidates.map(c => {
@@ -319,7 +367,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Action Button (Selection) */}
+                    {/* Action Button */}
                     <button
                       className={`sm:w-32 py-2.5 rounded-lg font-bold text-sm border transition-all ${selectedCandidateId === candidate.id
                           ? 'bg-[#00d395] text-white border-[#00d395] shadow-md shadow-emerald-200'
