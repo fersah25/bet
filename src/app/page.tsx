@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useAppKit } from '@reown/appkit/react';
-import { useAccount, useChainId, useSwitchChain, useSendTransaction } from 'wagmi';
-import { baseSepolia } from 'wagmi/chains';
-import { parseEther } from 'viem';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { createWalletClient, custom, parseEther } from 'viem';
+import { baseSepolia } from 'viem/chains';
 import Navbar from '@/components/Navbar';
 
 // --- Types ---
@@ -26,11 +25,9 @@ export default function Home() {
   const [isTrading, setIsTrading] = useState<boolean>(false);
 
   // Wallet Hooks
-  const { open } = useAppKit();
-  const { isConnected } = useAccount();
-  const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
-  const { sendTransactionAsync } = useSendTransaction();
+  const { login, authenticated, user } = usePrivy();
+  const { wallets } = useWallets();
+  const wallet = wallets[0]; // Primary wallet
 
   // Fetch Data
   useEffect(() => {
@@ -110,8 +107,26 @@ export default function Home() {
     setIsTrading(true);
 
     try {
+      if (!wallet) return;
+
+      // Ensure correct chain
+      const currentChainId = Number(wallet.chainId);
+      if (currentChainId !== baseSepolia.id) {
+        await wallet.switchChain(baseSepolia.id);
+      }
+
+      // Get provider and signer
+      const provider = await wallet.getEthereumProvider();
+      const walletClient = createWalletClient({
+        chain: baseSepolia,
+        transport: custom(provider),
+      });
+
+      const [address] = await walletClient.getAddresses();
+
       // 1. Send Dummy Transaction
-      const hash = await sendTransactionAsync({
+      const hash = await walletClient.sendTransaction({
+        account: address,
         to: '0x000000000000000000000000000000000000dead',
         value: parseEther('0.0001'),
       });
@@ -166,21 +181,22 @@ export default function Home() {
 
   // Button Logic Helper
   const renderTradeButton = () => {
-    if (!isConnected) {
+    if (!authenticated) {
       return (
         <button
-          onClick={() => open()}
+          onClick={() => login()}
           className="w-full py-4 bg-gray-900 text-white font-bold text-lg rounded-xl shadow-lg transition-all hover:bg-gray-800"
         >
-          Connect Wallet
+          Log In to Trade
         </button>
       )
     }
 
-    if (chainId !== baseSepolia.id) {
+    // Check Chain (if wallet connected)
+    if (Date.now() > 0 && wallet && Number(wallet.chainId) !== baseSepolia.id) { // Simple check, ensuring wallet exists
       return (
         <button
-          onClick={() => switchChain({ chainId: baseSepolia.id })}
+          onClick={async () => await wallet.switchChain(baseSepolia.id)}
           className="w-full py-4 bg-yellow-500 text-white font-bold text-lg rounded-xl shadow-lg transition-all hover:bg-yellow-600"
         >
           Switch to Base Sepolia

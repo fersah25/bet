@@ -1,24 +1,32 @@
 import { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabaseClient';
 
 export interface UserProfile {
     wallet_address: string;
     username: string | null;
+    email: string | null;
     avatar_url: string | null;
+    privy_user_id: string | null;
 }
 
 export function useUserSync() {
-    const { address, isConnected } = useAccount();
+    const { user, ready, authenticated } = usePrivy();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
         async function syncUser() {
-            if (!isConnected || !address) {
+            if (!ready) return;
+
+            if (!authenticated || !user?.wallet?.address) {
                 setUserProfile(null);
                 return;
             }
+
+            const walletAddress = user.wallet.address;
+            const email = user.email ? user.email.address : null; // Access email address
+            const privyId = user.id;
 
             setIsSyncing(true);
             try {
@@ -26,21 +34,30 @@ export function useUserSync() {
                 const { data: existingUser, error: fetchError } = await supabase
                     .from('users')
                     .select('*')
-                    .eq('wallet_address', address)
+                    .eq('wallet_address', walletAddress)
                     .single();
 
-                if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "Row not found"
+                if (fetchError && fetchError.code !== 'PGRST116') {
                     console.error('Error fetching user:', fetchError);
                 }
 
                 if (existingUser) {
-                    // User exists
-                    setUserProfile(existingUser as UserProfile);
+                    // Update email/privy_id if missing or changed
+                    if (existingUser.email !== email || existingUser.privy_user_id !== privyId) {
+                        await supabase
+                            .from('users')
+                            .update({ email: email, privy_user_id: privyId })
+                            .eq('wallet_address', walletAddress);
+                    }
+                    // Use the updated data (or existing if no update needed, simplified here)
+                    setUserProfile({ ...existingUser, email, privy_user_id: privyId } as UserProfile);
                 } else {
                     // 2. Create new user
                     const newUser = {
-                        wallet_address: address,
-                        username: `User ${address.slice(0, 6)}...`,
+                        wallet_address: walletAddress,
+                        username: email ? email.split('@')[0] : `User ${walletAddress.slice(0, 6)}...`,
+                        email: email,
+                        privy_user_id: privyId,
                         avatar_url: null
                     };
 
@@ -64,7 +81,7 @@ export function useUserSync() {
         }
 
         syncUser();
-    }, [address, isConnected]);
+    }, [user, ready, authenticated]);
 
     return { userProfile, isSyncing };
 }
