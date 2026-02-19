@@ -9,6 +9,8 @@ import Navbar from '@/components/Navbar';
 import BettingABI from '@/contracts/abi.json';
 
 const CONTRACT_ADDRESS = '0x1037505374431e793910c282531065e905325350'; // Placeholder - Replace with deployed contract
+const ETH_PRICE = 3000; // Hardcoded ETH Price for Demo conversion
+
 
 
 // --- Types ---
@@ -130,6 +132,13 @@ export default function Home() {
 
       const [address] = await walletClient.getAddresses();
 
+      // Calculate ETH amount from USD input
+      const amountUSD = parseFloat(amount);
+      const ethAmount = amountUSD / ETH_PRICE;
+      const ethValue = parseEther(ethAmount.toFixed(18)); // Ensure 18 decimals max
+
+      console.log(`Sending ${ethValue} wei (${ethAmount} ETH) for $${amountUSD}`);
+
       // 1. Write to Smart Contract
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
@@ -137,7 +146,7 @@ export default function Home() {
         functionName: 'placeBet',
         args: [selectedCandidate.name],
         account: address,
-        value: parseEther(amount),
+        value: ethValue,
         chain: baseSepolia,
       });
 
