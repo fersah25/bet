@@ -6,6 +6,7 @@ import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useChainId, useSwitchChain, useSendTransaction } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { parseEther } from 'viem';
+import Navbar from '@/components/Navbar';
 
 // --- Types ---
 interface Candidate {
@@ -203,16 +204,8 @@ export default function Home() {
     <main className="min-h-screen bg-white text-gray-900 font-sans">
 
       {/* Navbar */}
-      <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center space-x-2">
-          <div className="bg-[#00d395] text-white font-bold px-2 py-1 rounded text-lg">K</div>
-          <span className="text-xl font-bold tracking-tight text-gray-900">KalshiClone</span>
-        </div>
-        <div className="flex items-center gap-4">
-          {/* Wallet Connect Button (Custom or AppKit specific) */}
-          <appkit-button />
-        </div>
-      </nav>
+      {/* Navbar */}
+      <Navbar />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
