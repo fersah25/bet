@@ -34,45 +34,54 @@ export default function Home() {
         .select('*')
         .order('id', { ascending: true });
 
-      if (error) console.error('Error fetching candidates:', error);
+      if (error) {
+        console.error('Error fetching candidates:', error);
+        // Don't crash, just log
+      }
 
-      if (data) {
+      if (data && Array.isArray(data)) {
         const mappedCandidates: Candidate[] = data.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          initials: item.initials, // fallback if needed
-          color: item.color,
-          pool: item.pool_amount || 10,
-          image_url: item.image_url || '',
+          id: item?.id || 'unknown', // Fallback ID
+          name: item?.name || 'Unknown Candidate',
+          initials: item?.initials || '??',
+          color: item?.color || '#cccccc',
+          pool: Number(item?.pool_amount) || 10, // Ensure number
+          image_url: item?.image_url || '',
         }));
 
+        // Filter out any potential invalid entries if necessary, though simplistic map is usually fine
         setCandidates(mappedCandidates);
 
         if (!selectedCandidateId && mappedCandidates.length > 0) {
           setSelectedCandidateId(mappedCandidates[0].id);
         }
+      } else {
+        setCandidates([]); // Ensure empty array if data is null
       }
 
     } catch (err) {
       console.error('Unexpected error:', err);
+      setCandidates([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Derived Calculations
-  const totalPool = candidates.reduce((sum, c) => sum + c.pool, 0);
+  // Derived Calculations - Safe checks
+  const totalPool = candidates?.reduce((sum, c) => sum + (c?.pool || 0), 0) || 0;
 
-  const getCandidateStats = (c: Candidate) => {
-    const probability = totalPool > 0 ? c.pool / totalPool : 0;
+  const getCandidateStats = (c: Candidate | undefined) => {
+    if (!c) return { probability: 0, probabilityPercent: 0, multiplier: 0 };
+    const pool = c.pool || 0;
+    const probability = totalPool > 0 ? pool / totalPool : 0;
     const probabilityPercent = probability * 100;
-    const multiplier = c.pool > 0 ? totalPool / c.pool : 0;
+    const multiplier = pool > 0 ? totalPool / pool : 0;
 
     return { probability, probabilityPercent, multiplier };
   };
 
-  const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId) || candidates[0];
-  const selectedStats = selectedCandidate ? getCandidateStats(selectedCandidate) : { probability: 0, probabilityPercent: 0, multiplier: 0 };
+  const selectedCandidate = candidates?.find((c) => c.id === selectedCandidateId) || (candidates && candidates.length > 0 ? candidates[0] : null);
+  const selectedStats = getCandidateStats(selectedCandidate || undefined);
 
   // Estimates
   const amountNum = parseFloat(amount) || 0;
@@ -88,7 +97,8 @@ export default function Home() {
     const tradeAmount = parseFloat(amount);
 
     try {
-      const newPoolAmount = selectedCandidate.pool + tradeAmount;
+      const currentPool = selectedCandidate.pool || 0;
+      const newPoolAmount = currentPool + tradeAmount;
 
       const { error } = await supabase
         .from('markets')
@@ -107,7 +117,7 @@ export default function Home() {
 
     } catch (err) {
       console.error('Trade failed:', err);
-      alert('Trade failed. check console.');
+      alert('Trade failed. Please try again.');
     } finally {
       setIsTrading(false);
     }
@@ -142,7 +152,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
 
-          {/* Left Column: Market Info & Clean Placeholder */}
+          {/* Left Column: Market Info & List */}
           <div className="lg:col-span-2 space-y-8">
 
             {/* Header */}
@@ -156,85 +166,80 @@ export default function Home() {
               </h1>
             </div>
 
-            {/* Marker Analysis Placeholder */}
-            <div className="h-64 w-full bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center p-6">
-              <div className="bg-white p-3 rounded-full shadow-sm mb-3">
-                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Chart coming soon</h3>
-              <p className="text-sm text-gray-500 max-w-xs mt-1">
-                Historical data is being collected. Check back later for trends.
-              </p>
-            </div>
+            {/* CHART REMOVED AS REQUESTED - CLEAN SLATE */}
 
-            {/* Candidates List - Clean & Refined Layout */}
+            {/* Candidates List - Clean & Robust */}
             <div className="space-y-3">
               <div className="flex justify-between items-end border-b border-gray-100 pb-2">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Candidates</h3>
-                {/* Hiding Prediction Title as requested by cleaner look, or sticking to row layout */}
               </div>
 
-              {candidates.map((candidate) => {
-                const { probabilityPercent, multiplier } = getCandidateStats(candidate);
-                return (
-                  <div
-                    key={candidate.id}
-                    className={`group flex flex-row items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id
-                        ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
-                        : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
-                      }`}
-                    onClick={() => setSelectedCandidateId(candidate.id)}
-                  >
-                    {/* 1. Photo (or Fallback) */}
-                    {candidate.image_url ? (
-                      <img
-                        src={candidate.image_url}
-                        alt={candidate.name}
-                        className="w-10 h-10 rounded-full object-cover border border-gray-100 shadow-sm shrink-0 bg-gray-200"
-                        onError={(e) => {
-                          // Simple inline fallback if image fails to load
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-
-                    {/* Fallback specific div if no URL or error hidden above (handled via conditional rendering usually, but for reliability on missing URL:) */}
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 text-gray-500 font-bold text-sm shrink-0 ${candidate.image_url ? 'hidden' : ''}`}>
-                      {candidate.name.charAt(0)}
-                    </div>
-
-                    {/* 2. Name */}
-                    <div className="ml-4 flex-1">
-                      <h4 className="font-bold text-gray-900 text-sm md:text-base">{candidate.name}</h4>
-                    </div>
-
-                    {/* 3. Percentage */}
-                    <div className="text-right mx-4 min-w-[60px]">
-                      <span className="block font-bold text-gray-900 text-lg">{probabilityPercent.toFixed(0)}%</span>
-                    </div>
-
-                    {/* 4. Multiplier */}
-                    <div className="text-right mr-4 min-w-[50px] hidden sm:block">
-                      <span className="text-sm font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                        {multiplier.toFixed(2)}x
-                      </span>
-                    </div>
-
-                    {/* 5. Select Button */}
-                    <button
-                      className={`px-4 py-2 rounded-lg font-bold text-xs md:text-sm border transition-all ${selectedCandidateId === candidate.id
-                          ? 'bg-[#00d395] text-white border-[#00d395] shadow-sm'
-                          : 'bg-white text-gray-400 border-gray-200 group-hover:border-gray-300'
+              {candidates && candidates.length > 0 ? (
+                candidates.map((candidate) => {
+                  const { probabilityPercent, multiplier } = getCandidateStats(candidate);
+                  return (
+                    <div
+                      key={candidate?.id || Math.random()}
+                      className={`group flex flex-row items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate?.id
+                          ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
+                          : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
                         }`}
+                      onClick={() => candidate?.id && setSelectedCandidateId(candidate.id)}
                     >
-                      {selectedCandidateId === candidate.id ? 'Selected' : 'Select'}
-                    </button>
-                  </div>
-                );
-              })}
+                      {/* 1. Photo (or Fallback) */}
+                      {candidate?.image_url ? (
+                        <img
+                          src={candidate.image_url}
+                          alt={candidate.name || 'Candidate'}
+                          className="w-10 h-10 rounded-full object-cover border border-gray-100 shadow-sm shrink-0 bg-gray-200"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+
+                      {/* Fallback */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 text-gray-500 font-bold text-sm shrink-0 ${candidate?.image_url ? 'hidden' : ''}`}
+                        style={!candidate?.image_url && candidate?.color ? { backgroundColor: candidate.color, color: 'white' } : {}}
+                      >
+                        {(candidate?.name || '?').charAt(0)}
+                      </div>
+
+                      {/* 2. Name */}
+                      <div className="ml-4 flex-1">
+                        <h4 className="font-bold text-gray-900 text-sm md:text-base">{candidate?.name || 'Unknown'}</h4>
+                      </div>
+
+                      {/* 3. Percentage */}
+                      <div className="text-right mx-4 min-w-[60px]">
+                        <span className="block font-bold text-gray-900 text-lg">{probabilityPercent.toFixed(0)}%</span>
+                      </div>
+
+                      {/* 4. Multiplier */}
+                      <div className="text-right mr-4 min-w-[50px] hidden sm:block">
+                        <span className="text-sm font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                          {multiplier.toFixed(2)}x
+                        </span>
+                      </div>
+
+                      {/* 5. Select Button */}
+                      <button
+                        className={`px-4 py-2 rounded-lg font-bold text-xs md:text-sm border transition-all ${selectedCandidateId === candidate?.id
+                            ? 'bg-[#00d395] text-white border-[#00d395] shadow-sm'
+                            : 'bg-white text-gray-400 border-gray-200 group-hover:border-gray-300'
+                          }`}
+                      >
+                        {selectedCandidateId === candidate?.id ? 'Selected' : 'Select'}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  No candidates found.
+                </div>
+              )}
             </div>
           </div>
 
@@ -255,15 +260,19 @@ export default function Home() {
                             src={selectedCandidate.image_url}
                             alt={selectedCandidate.name}
                             className="w-10 h-10 rounded-full object-cover border border-white shadow-sm bg-gray-100"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
                           />
-                        ) : (
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-md relative"
-                            style={{ backgroundColor: selectedCandidate.color }}
-                          >
-                            {selectedCandidate.initials}
-                          </div>
-                        )}
+                        ) : null}
+
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 text-gray-500 font-bold text-sm shrink-0 border border-white shadow-sm ${selectedCandidate.image_url ? 'hidden' : ''}`}
+                          style={!selectedCandidate.image_url && selectedCandidate.color ? { backgroundColor: selectedCandidate.color, color: 'white' } : {}}
+                        >
+                          {(selectedCandidate.name || '?').charAt(0)}
+                        </div>
+
                         <h2 className="text-lg font-bold text-gray-900 leading-tight">
                           Buy <span className="text-gray-900">{selectedCandidate.name}</span>
                         </h2>
