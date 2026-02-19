@@ -114,7 +114,9 @@ export default function Home() {
       if (!wallet) return;
 
       // Ensure correct chain
-      const currentChainId = Number(wallet.chainId);
+      const chainIdString = wallet.chainId;
+      const currentChainId = Number(chainIdString.includes(':') ? chainIdString.split(':')[1] : chainIdString);
+
       if (currentChainId !== baseSepolia.id) {
         await wallet.switchChain(baseSepolia.id);
       }
@@ -201,10 +203,21 @@ export default function Home() {
     }
 
     // Check Chain (if wallet connected)
-    if (Date.now() > 0 && wallet && Number(wallet.chainId) !== baseSepolia.id) { // Simple check, ensuring wallet exists
+    // Check Chain (if wallet connected)
+    const walletChainIdStr = wallet?.chainId;
+    const walletChainId = walletChainIdStr ? Number(walletChainIdStr.includes(':') ? walletChainIdStr.split(':')[1] : walletChainIdStr) : null;
+
+    if (wallet && walletChainId !== baseSepolia.id) {
       return (
         <button
-          onClick={async () => await wallet.switchChain(baseSepolia.id)}
+          onClick={async () => {
+            try {
+              await wallet.switchChain(baseSepolia.id);
+            } catch (e) {
+              console.error("Switch chain failed", e);
+              alert("Failed to switch network. Please try manually.");
+            }
+          }}
           className="w-full py-4 bg-yellow-500 text-white font-bold text-lg rounded-xl shadow-lg transition-all hover:bg-yellow-600"
         >
           Switch to Base Sepolia
