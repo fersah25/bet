@@ -1,31 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 // --- Types ---
 interface Candidate {
-  id: string;
+  id: string; // UUID from Supabase
   name: string;
   initials: string;
   color: string;
-  pool: number; // Total points staked
+  pool: number; // mapped from pool_amount
 }
 
 interface HistoryPoint {
   [candidateId: string]: number; // Percentage (0-100) at this tick
 }
 
-// --- Seed Data ---
-const INITIAL_CANDIDATES: Candidate[] = [
-  { id: 'c1', name: 'Kevin Warsh', initials: 'KW', color: '#00d395', pool: 10 },
-  { id: 'c2', name: 'Judy Shelton', initials: 'JS', color: '#3b82f6', pool: 10 },
-  { id: 'c3', name: 'Rick Rieder', initials: 'RR', color: '#a855f7', pool: 10 },
-  { id: 'c4', name: 'Scott Bessent', initials: 'SB', color: '#f43f5e', pool: 10 },
-];
-
-// Initial history state (all start equal 25%)
-const INITIAL_HISTORY: HistoryPoint[] = [
-  { c1: 25, c2: 25, c3: 25, c4: 25 },
+// --- Seed Data (Fallback / Initial Insert) ---
+const SEED_CANDIDATES = [
+  { name: 'Kevin Warsh', initials: 'KW', color: '#00d395', pool_amount: 10 },
+  { name: 'Judy Shelton', initials: 'JS', color: '#3b82f6', pool_amount: 10 },
+  { name: 'Rick Rieder', initials: 'RR', color: '#a855f7', pool_amount: 10 },
+  { name: 'Scott Bessent', initials: 'SB', color: '#f43f5e', pool_amount: 10 },
 ];
 
 // --- Components ---
@@ -47,7 +43,7 @@ const MultiLineChart = ({
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
 
-      {/* Grid Lines (Optional) */}
+      {/* Grid Lines */}
       <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} stroke="#f3f4f6" strokeWidth="0.5" />
       <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} stroke="#f3f4f6" strokeWidth="0.5" />
       <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} stroke="#f3f4f6" strokeWidth="0.5" />
@@ -78,20 +74,85 @@ const MultiLineChart = ({
 };
 
 export default function Home() {
-  const [candidates, setCandidates] = useState<Candidate[]>(INITIAL_CANDIDATES);
-  const [history, setHistory] = useState<HistoryPoint[]>(INITIAL_HISTORY);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>(INITIAL_CANDIDATES[0].id);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [history, setHistory] = useState<HistoryPoint[]>([]); // We start empty, will calc initial point on load
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [amount, setAmount] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isTrading, setIsTrading] = useState<boolean>(false);
+
+  // Fetch Data
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
+
+  const fetchCandidates = async () => {
+    setIsLoading(true);
+    try {
+      let { data, error } = await supabase
+        .from('markets')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching candidates:', error);
+        // Fallback? Or just show empty?
+      }
+
+      if (!data || data.length === 0) {
+        // Seed if empty (Development Helper)
+        console.log('Seeding Database...');
+        const { data: inserted, error: insertError } = await supabase
+          .from('markets')
+          .insert(SEED_CANDIDATES)
+          .select();
+
+        if (inserted) data = inserted;
+      }
+
+      if (data) {
+        // Map DB columns to our Interface
+        const mappedCandidates: Candidate[] = data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          initials: item.initials,
+          color: item.color,
+          pool: item.pool_amount || 10, // Default to 10 if null
+        }));
+
+        setCandidates(mappedCandidates);
+
+        // Set initial selection if none
+        if (!selectedCandidateId && mappedCandidates.length > 0) {
+          setSelectedCandidateId(mappedCandidates[0].id);
+        }
+
+        // Initialize History with current state
+        const total = mappedCandidates.reduce((sum, c) => sum + c.pool, 0);
+        const initialPoint: HistoryPoint = {};
+        mappedCandidates.forEach(c => {
+          initialPoint[c.id] = total > 0 ? (c.pool / total) * 100 : 25;
+        });
+        // Keep history length reasonable, or mostly just show recent updates from this session?
+        // For now, reset history on reload to just the current state line.
+        setHistory([initialPoint, initialPoint]);
+      }
+
+    } catch (err) {
+      console.error('Unexpected error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Derived Calculations
   const totalPool = candidates.reduce((sum, c) => sum + c.pool, 0);
 
   const getCandidateStats = (c: Candidate) => {
-    const probability = c.pool / totalPool;
+    const probability = totalPool > 0 ? c.pool / totalPool : 0;
     const probabilityPercent = probability * 100;
-    // Multiplier: If you bet 1 and win, you get share of total pool. 
-    // Simplified Pari-Mutuel: TotalPool / CandidatePool
-    const multiplier = totalPool / c.pool;
+    // Multiplier: TotalPool / CandidatePool
+    const multiplier = c.pool > 0 ? totalPool / c.pool : 0;
 
     return {
       probability,
@@ -101,47 +162,71 @@ export default function Home() {
   };
 
   const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId) || candidates[0];
-  const selectedStats = getCandidateStats(selectedCandidate);
+  const selectedStats = selectedCandidate ? getCandidateStats(selectedCandidate) : { probability: 0, probabilityPercent: 0, multiplier: 0 };
 
   // Estimates based on input
   const amountNum = parseFloat(amount) || 0;
-  // Use current multiplier for estimate (Simplified) or calculate projected?
-  // Let's use current for simple display, or projected if we want to be fancy.
-  // Projected Multiplier would come from (Total + Amount) / (Pool + Amount). 
   const projectedTotal = totalPool + amountNum;
-  const projectedPool = selectedCandidate.pool + amountNum;
-  const projectedMultiplier = amountNum > 0 ? projectedTotal / projectedPool : selectedStats.multiplier;
+  const projectedPool = (selectedCandidate?.pool || 0) + amountNum;
+  const projectedMultiplier = projectedPool > 0 ? projectedTotal / projectedPool : 0;
   const estimatedPayout = (amountNum * projectedMultiplier).toFixed(2);
 
 
-  const handleTrade = () => {
-    if (!amount || isNaN(parseFloat(amount))) return;
+  const handleTrade = async () => {
+    if (!amount || isNaN(parseFloat(amount)) || !selectedCandidate) return;
+    setIsTrading(true);
     const tradeAmount = parseFloat(amount);
 
-    setCandidates((prev) => {
-      // 1. Update Pools
-      const newCandidates = prev.map((c) => {
-        if (c.id === selectedCandidateId) {
-          return { ...c, pool: c.pool + tradeAmount };
-        }
-        return c;
-      });
+    try {
+      // 1. Optimistic Update (Optional) - skipped for simplicity, let's wait for DB
 
-      // 2. Calculate New Stats for History
+      // 2. DB Update
+      const newPoolAmount = selectedCandidate.pool + tradeAmount;
+
+      const { error } = await supabase
+        .from('markets') // User specified 'markets'
+        .update({ pool_amount: newPoolAmount })
+        .eq('id', selectedCandidate.id);
+
+      if (error) throw error;
+
+      // 3. Re-fetch to get latest state (including other simul-trades if any)
+      // ideally enable realtime subscription here, but re-fetching is safer for now.
+      // We can manually update local state to be faster though.
+
+      const newCandidates = candidates.map(c =>
+        c.id === selectedCandidate.id ? { ...c, pool: newPoolAmount } : c
+      );
+      setCandidates(newCandidates);
+
+      // 4. Update History
       const newTotal = newCandidates.reduce((sum, c) => sum + c.pool, 0);
       const newHistoryPoint: HistoryPoint = {};
-
       newCandidates.forEach(c => {
         newHistoryPoint[c.id] = (c.pool / newTotal) * 100;
       });
+      setHistory(prev => [...prev, newHistoryPoint]);
 
-      setHistory(prevHist => [...prevHist, newHistoryPoint]);
+      setAmount('');
 
-      return newCandidates;
-    });
-
-    setAmount('');
+    } catch (err) {
+      console.error('Trade failed:', err);
+      alert('Trade failed. check console.');
+    } finally {
+      setIsTrading(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-[#00d395] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-500 font-medium">Loading Markets...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-white text-gray-900 font-sans">
@@ -253,80 +338,84 @@ export default function Home() {
           <div className="lg:col-span-1">
             <div className="sticky top-24">
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-gray-100 overflow-hidden text-sm">
-
-                {/* Panel Header */}
-                <div className="bg-gray-50/50 p-4 border-b border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Order Ticket</span>
-                  </div>
-                  <h2 className="text-lg font-bold text-gray-900 leading-tight">
-                    Buy <span style={{ color: selectedCandidate.color }}>{selectedCandidate.name}</span>
-                  </h2>
-                </div>
-
-                <div className="p-5 space-y-6">
-
-                  {/* Selected Info */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg border border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedCandidate.color }}></span>
-                      <span className="font-semibold">{selectedCandidate.initials}</span>
+                {selectedCandidate ? (
+                  <>
+                    {/* Panel Header */}
+                    <div className="bg-gray-50/50 p-4 border-b border-gray-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Order Ticket</span>
+                      </div>
+                      <h2 className="text-lg font-bold text-gray-900 leading-tight">
+                        Buy <span style={{ color: selectedCandidate.color }}>{selectedCandidate.name}</span>
+                      </h2>
                     </div>
-                    <div className="text-right">
-                      <span className="block text-xs text-gray-400">Current Payout</span>
-                      <span className="font-bold text-gray-900">{selectedStats.multiplier.toFixed(2)}x</span>
-                    </div>
-                  </div>
 
-                  {/* Amount Input */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">$</span>
-                      <input
-                        type="text"
-                        value={amount}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d*\.?\d*$/.test(val)) setAmount(val);
-                        }}
-                        placeholder="0"
-                        className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-lg text-xl font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00d395] focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
+                    <div className="p-5 space-y-6">
 
-                  {/* Summary Stats */}
-                  <div className="space-y-2 pt-2 pb-2 text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Total Pool</span>
-                      <span className="font-medium text-gray-900">{totalPool.toFixed(0)} pts</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Est. New Multiplier</span>
-                      <span className="font-medium text-blue-600">{projectedMultiplier.toFixed(2)}x</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-gray-100">
-                      <span>Est. Payout</span>
-                      <span className="font-bold text-emerald-600">${estimatedPayout}</span>
-                    </div>
-                  </div>
+                      {/* Selected Info */}
+                      <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg border border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedCandidate.color }}></span>
+                          <span className="font-semibold">{selectedCandidate.initials}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-xs text-gray-400">Current Payout</span>
+                          <span className="font-bold text-gray-900">{selectedStats.multiplier.toFixed(2)}x</span>
+                        </div>
+                      </div>
 
-                  {/* Trade Button */}
-                  <button
-                    onClick={handleTrade}
-                    className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'
-                      }`}
-                    disabled={!amount}
-                  >
-                    Place Order
-                  </button>
+                      {/* Amount Input */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase">Amount</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">$</span>
+                          <input
+                            type="text"
+                            value={amount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || /^\d*\.?\d*$/.test(val)) setAmount(val);
+                            }}
+                            placeholder="0"
+                            className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-lg text-xl font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00d395] focus:border-transparent transition-all"
+                          />
+                        </div>
+                      </div>
 
-                  <p className="text-center text-[10px] text-gray-400 leading-tight">
-                    Pari-mutuel logic active. <br /> Your bet adjusts odds for everyone.
-                  </p>
+                      {/* Summary Stats */}
+                      <div className="space-y-2 pt-2 pb-2 text-gray-600">
+                        <div className="flex justify-between">
+                          <span>Total Pool</span>
+                          <span className="font-medium text-gray-900">{totalPool.toFixed(0)} pts</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Est. New Multiplier</span>
+                          <span className="font-medium text-blue-600">{projectedMultiplier.toFixed(2)}x</span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-gray-100">
+                          <span>Est. Payout</span>
+                          <span className="font-bold text-emerald-600">${estimatedPayout}</span>
+                        </div>
+                      </div>
 
-                </div>
+                      {/* Trade Button */}
+                      <button
+                        onClick={handleTrade}
+                        className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'
+                          }`}
+                        disabled={!amount || isTrading}
+                      >
+                        {isTrading ? 'Processing...' : 'Place Order'}
+                      </button>
+
+                      <p className="text-center text-[10px] text-gray-400 leading-tight">
+                        Pari-mutuel logic active. <br /> Your bet adjusts odds for everyone.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-8 text-center text-gray-400">Select a candidate to trade</div>
+                )}
               </div>
             </div>
           </div>
