@@ -28,7 +28,8 @@ export default function Home() {
   const fetchCandidates = async () => {
     setIsLoading(true);
     try {
-      let { data, error } = await supabase
+      // Strictly fetch from Supabase, no seeds
+      const { data, error } = await supabase
         .from('markets')
         .select('*')
         .order('id', { ascending: true });
@@ -39,7 +40,7 @@ export default function Home() {
         const mappedCandidates: Candidate[] = data.map((item: any) => ({
           id: item.id,
           name: item.name,
-          initials: item.initials,
+          initials: item.initials, // fallback if needed
           color: item.color,
           pool: item.pool_amount || 10,
           image_url: item.image_url || '',
@@ -155,7 +156,7 @@ export default function Home() {
               </h1>
             </div>
 
-            {/* Marker Analysis Placeholder (Replaced Chart) */}
+            {/* Marker Analysis Placeholder */}
             <div className="h-64 w-full bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center p-6">
               <div className="bg-white p-3 rounded-full shadow-sm mb-3">
                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,11 +169,11 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Candidates List */}
-            <div className="space-y-4">
+            {/* Candidates List - Clean & Refined Layout */}
+            <div className="space-y-3">
               <div className="flex justify-between items-end border-b border-gray-100 pb-2">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Candidates</h3>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:block">Prediction</div>
+                {/* Hiding Prediction Title as requested by cleaner look, or sticking to row layout */}
               </div>
 
               {candidates.map((candidate) => {
@@ -180,45 +181,53 @@ export default function Home() {
                 return (
                   <div
                     key={candidate.id}
-                    className={`group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id
-                      ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
-                      : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
+                    className={`group flex flex-row items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id
+                        ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
+                        : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
                       }`}
                     onClick={() => setSelectedCandidateId(candidate.id)}
                   >
-                    {/* Info with Image */}
-                    <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                      {candidate.image_url ? (
-                        <img
-                          src={candidate.image_url}
-                          alt={candidate.name}
-                          className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md bg-gray-100"
-                        />
-                      ) : (
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-md relative"
-                          style={{ backgroundColor: candidate.color }}
-                        >
-                          {candidate.initials}
-                        </div>
-                      )}
+                    {/* 1. Photo (or Fallback) */}
+                    {candidate.image_url ? (
+                      <img
+                        src={candidate.image_url}
+                        alt={candidate.name}
+                        className="w-10 h-10 rounded-full object-cover border border-gray-100 shadow-sm shrink-0 bg-gray-200"
+                        onError={(e) => {
+                          // Simple inline fallback if image fails to load
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
 
-                      <div>
-                        <h4 className="font-bold text-gray-900 text-lg">{candidate.name}</h4>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-2xl font-bold text-gray-900">{probabilityPercent.toFixed(1)}%</span>
-                          <span className="text-xs font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                            {multiplier.toFixed(2)}x
-                          </span>
-                        </div>
-                      </div>
+                    {/* Fallback specific div if no URL or error hidden above (handled via conditional rendering usually, but for reliability on missing URL:) */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 text-gray-500 font-bold text-sm shrink-0 ${candidate.image_url ? 'hidden' : ''}`}>
+                      {candidate.name.charAt(0)}
                     </div>
 
-                    {/* Action Button */}
+                    {/* 2. Name */}
+                    <div className="ml-4 flex-1">
+                      <h4 className="font-bold text-gray-900 text-sm md:text-base">{candidate.name}</h4>
+                    </div>
+
+                    {/* 3. Percentage */}
+                    <div className="text-right mx-4 min-w-[60px]">
+                      <span className="block font-bold text-gray-900 text-lg">{probabilityPercent.toFixed(0)}%</span>
+                    </div>
+
+                    {/* 4. Multiplier */}
+                    <div className="text-right mr-4 min-w-[50px] hidden sm:block">
+                      <span className="text-sm font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                        {multiplier.toFixed(2)}x
+                      </span>
+                    </div>
+
+                    {/* 5. Select Button */}
                     <button
-                      className={`sm:w-32 py-2.5 rounded-lg font-bold text-sm border transition-all ${selectedCandidateId === candidate.id
-                        ? 'bg-[#00d395] text-white border-[#00d395] shadow-md shadow-emerald-200'
-                        : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                      className={`px-4 py-2 rounded-lg font-bold text-xs md:text-sm border transition-all ${selectedCandidateId === candidate.id
+                          ? 'bg-[#00d395] text-white border-[#00d395] shadow-sm'
+                          : 'bg-white text-gray-400 border-gray-200 group-hover:border-gray-300'
                         }`}
                     >
                       {selectedCandidateId === candidate.id ? 'Selected' : 'Select'}
@@ -241,12 +250,19 @@ export default function Home() {
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Order Ticket</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        {selectedCandidate.image_url && (
+                        {selectedCandidate.image_url ? (
                           <img
                             src={selectedCandidate.image_url}
                             alt={selectedCandidate.name}
-                            className="w-8 h-8 rounded-full object-cover border border-white shadow-sm bg-gray-100"
+                            className="w-10 h-10 rounded-full object-cover border border-white shadow-sm bg-gray-100"
                           />
+                        ) : (
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-md relative"
+                            style={{ backgroundColor: selectedCandidate.color }}
+                          >
+                            {selectedCandidate.initials}
+                          </div>
                         )}
                         <h2 className="text-lg font-bold text-gray-900 leading-tight">
                           Buy <span className="text-gray-900">{selectedCandidate.name}</span>
