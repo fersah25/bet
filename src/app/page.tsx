@@ -1,63 +1,157 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // --- Types ---
 interface Candidate {
   id: string;
   name: string;
   initials: string;
-  probability: number;
-  prices: {
-    yes: number;
-    no: number;
-  };
+  prices: { yes: number; no: number };
+  yesPool: number;
+  noPool: number;
+  priceHistory: number[]; // Array of history for the 'yes' price (0-1)
 }
 
-// --- Mock Data ---
-const CANDIDATES: Candidate[] = [
+// --- Mock Initial Data ---
+const INITIAL_CANDIDATES: Candidate[] = [
   {
     id: 'c1',
     name: 'Kevin Warsh',
     initials: 'KW',
-    probability: 95,
-    prices: { yes: 0.95, no: 0.06 },
+    yesPool: 9500,
+    noPool: 500,
+    prices: { yes: 0.95, no: 0.05 },
+    priceHistory: [0.88, 0.89, 0.92, 0.91, 0.94, 0.95],
   },
   {
     id: 'c2',
     name: 'Judy Shelton',
     initials: 'JS',
-    probability: 4,
-    prices: { yes: 0.04, no: 0.97 },
+    yesPool: 400,
+    noPool: 9600,
+    prices: { yes: 0.04, no: 0.96 },
+    priceHistory: [0.08, 0.07, 0.05, 0.06, 0.05, 0.04],
   },
   {
     id: 'c3',
     name: 'Rick Rieder',
     initials: 'RR',
-    probability: 1,
+    yesPool: 100,
+    noPool: 9900,
     prices: { yes: 0.01, no: 0.99 },
+    priceHistory: [0.03, 0.02, 0.02, 0.01, 0.01, 0.01],
   },
 ];
 
+// --- Components ---
+
+const DynamicLineChart = ({ data, color }: { data: number[]; color: string }) => {
+  if (!data || data.length < 2) return null;
+
+  const width = 100;
+  const height = 40;
+  const min = Math.min(...data) * 0.9;
+  const max = Math.max(...data) * 1.1;
+  const range = max - min || 1;
+
+  // Create points for the SVG polyline
+  const points = data
+    .map((val, index) => {
+      const x = (index / (data.length - 1)) * width;
+      const y = height - ((val - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
+
+      {/* Gradient Defs */}
+      <defs>
+        <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Area Fill (Close the loop for fill) */}
+      <path
+        d={`${points} L${width},${height} L0,${height} Z`}
+        fill="url(#chartGradient)"
+        stroke="none"
+      />
+
+      {/* The Line */}
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        points={points}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+};
+
 export default function Home() {
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>(CANDIDATES[0].id);
+  const [candidates, setCandidates] = useState<Candidate[]>(INITIAL_CANDIDATES);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>(INITIAL_CANDIDATES[0].id); // Use the constant for initial ref? No, use string.
   const [selectedSide, setSelectedSide] = useState<'yes' | 'no'>('yes');
   const [amount, setAmount] = useState<string>('');
-  const [orderType, setOrderType] = useState<'buy' | 'sell'>('buy'); // Only 'buy' active for now visually
 
-  const selectedCandidate = CANDIDATES.find((c) => c.id === selectedCandidateId) || CANDIDATES[0];
+  // Derived state from the functional state
+  const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId) || candidates[0];
+  const currentPrice = selectedSide === 'yes' ? selectedCandidate.prices.yes : selectedCandidate.prices.no;
+  const priceDisplay = Math.round(currentPrice * 100);
+
+  // Calculate est. returns
+  const estShares = amount ? (parseFloat(amount) / currentPrice).toFixed(2) : '0.00';
+  const payout = amount ? (parseFloat(estShares) * 1.00).toFixed(2) : '0.00';
 
   const handleSelect = (candidateId: string, side: 'yes' | 'no') => {
     setSelectedCandidateId(candidateId);
     setSelectedSide(side);
+    setAmount(''); // Reset input on switch
   };
 
-  const currentPrice = selectedSide === 'yes' ? selectedCandidate.prices.yes : selectedCandidate.prices.no;
-  const priceDisplay = Math.round(currentPrice * 100);
+  const handleTrade = () => {
+    if (!amount || isNaN(parseFloat(amount))) return;
+    const tradeAmount = parseFloat(amount);
 
-  // Calculate est. shares
-  const estShares = amount ? (parseFloat(amount) / currentPrice).toFixed(2) : '0.00';
-  const payout = amount ? (parseFloat(estShares) * 1.00).toFixed(2) : '0.00'; // Assuming $1 payout
+    setCandidates((prevCandidates) =>
+      prevCandidates.map((c) => {
+        if (c.id === selectedCandidateId) {
+          // Simulation Logic:
+          // 1. Update Pools
+          const newYesPool = selectedSide === 'yes' ? c.yesPool + tradeAmount : c.yesPool;
+          const newNoPool = selectedSide === 'no' ? c.noPool + tradeAmount : c.noPool;
+
+          // 2. Calculate New Price (AMM-ish: p = yes / (yes + no))
+          // For 'No' price it is 1 - YesPrice
+          const totalPool = newYesPool + newNoPool;
+          const newYesPrice = newYesPool / totalPool;
+          const newNoPrice = 1 - newYesPrice;
+
+          // 3. Update History
+          // We only track the 'YES' price history for the chart for simplicity
+          const newHistory = [...c.priceHistory, newYesPrice];
+
+          return {
+            ...c,
+            yesPool: newYesPool,
+            noPool: newNoPool,
+            prices: { yes: newYesPrice, no: newNoPrice },
+            priceHistory: newHistory,
+          };
+        }
+        return c;
+      })
+    );
+
+    // Optional: Visual feedback or toast could go here
+    setAmount('');
+  };
 
   return (
     <main className="min-h-screen bg-white text-gray-900 font-sans">
@@ -80,7 +174,7 @@ export default function Home() {
           {/* Left Column: Market Info & Candidates */}
           <div className="lg:col-span-2 space-y-8">
 
-            {/* Header Area */}
+            {/* Header */}
             <div>
               <div className="flex items-center space-x-2 mb-2">
                 <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">Economics</span>
@@ -91,23 +185,16 @@ export default function Home() {
               </h1>
             </div>
 
-            {/* Chart Placeholder */}
-            <div className="h-64 w-full bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden group">
-              {/* SVG Line Chart Mock */}
-              <svg className="w-full h-full absolute bottom-0" preserveAspectRatio="none">
-                <path d="M0,100 Q150,50 300,80 T600,20 T900,50 L900,256 L0,256 Z" fill="url(#grad1)" opacity="0.1" />
-                <path d="M0,100 Q150,50 300,80 T600,20 T900,50" fill="none" stroke="#00d395" strokeWidth="3" />
-                <defs>
-                  <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: 'rgb(0, 211, 149)', stopOpacity: 1 }} />
-                    <stop offset="100%" style={{ stopColor: 'rgb(255,255,255)', stopOpacity: 0 }} />
-                  </linearGradient>
-                </defs>
-              </svg>
-
-              {/* Hover overlay hint */}
-              <div className="absolute top-4 right-4 bg-white/80 backdrop-blur px-3 py-1 rounded text-xs font-medium text-gray-500 shadow-sm border border-gray-100">
-                24H Change: <span className="text-emerald-500">+12%</span>
+            {/* Dynamic Chart Container */}
+            <div className="h-64 w-full bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden group p-4">
+              <DynamicLineChart
+                data={selectedCandidate.priceHistory}
+                color="#00d395"
+              />
+              {/* Overlay Info */}
+              <div className="absolute top-4 left-4">
+                <p className="text-sm text-gray-500 font-medium">{selectedCandidate.name} (Yes)</p>
+                <p className="text-2xl font-bold text-gray-900">{Math.round(selectedCandidate.prices.yes * 100)}%</p>
               </div>
             </div>
 
@@ -118,16 +205,16 @@ export default function Home() {
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:block">Prediction</div>
               </div>
 
-              {CANDIDATES.map((candidate) => (
+              {candidates.map((candidate) => (
                 <div
                   key={candidate.id}
                   className={`group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id
-                      ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
-                      : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
+                    ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
+                    : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
                     }`}
                   onClick={() => handleSelect(candidate.id, 'yes')}
                 >
-                  {/* Candidate Info */}
+                  {/* Info */}
                   <div className="flex items-center gap-4 mb-4 sm:mb-0">
                     <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-sm border-2 border-white shadow-sm">
                       {candidate.initials}
@@ -135,19 +222,18 @@ export default function Home() {
                     <div>
                       <h4 className="font-bold text-gray-900 text-lg">{candidate.name}</h4>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-2xl font-bold text-emerald-600">{candidate.probability}%</span>
-                        <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded">▲</span>
+                        <span className="text-2xl font-bold text-emerald-600">{Math.round(candidate.prices.yes * 100)}%</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Buttons */}
                   <div className="flex gap-3 sm:w-auto w-full">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSelect(candidate.id, 'yes'); }}
                       className={`flex-1 sm:w-28 py-2.5 rounded-lg font-bold text-sm border transition-all ${selectedCandidateId === candidate.id && selectedSide === 'yes'
-                          ? 'bg-[#00d395] text-white border-[#00d395] shadow-md shadow-emerald-200'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        ? 'bg-[#00d395] text-white border-[#00d395] shadow-md shadow-emerald-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                         }`}
                     >
                       <span className="block text-xs font-medium opacity-80 uppercase">Yes</span>
@@ -156,8 +242,8 @@ export default function Home() {
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSelect(candidate.id, 'no'); }}
                       className={`flex-1 sm:w-28 py-2.5 rounded-lg font-bold text-sm border transition-all ${selectedCandidateId === candidate.id && selectedSide === 'no'
-                          ? 'bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-200'
-                          : 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'
+                        ? 'bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'
                         }`}
                     >
                       <span className="block text-xs font-medium opacity-80 uppercase">No</span>
@@ -167,19 +253,9 @@ export default function Home() {
                 </div>
               ))}
             </div>
-
-            {/* Rules / Details */}
-            <div className="pt-8 border-t border-gray-100">
-              <h3 className="font-bold text-gray-900 mb-2">Rules</h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                This market asks who Donald Trump will nominate as the next Chair of the Federal Reserve.
-                The nomination must be officially announced by Trump or his transition team.
-                If no nomination is made by the inauguration, the market extends.
-              </p>
-            </div>
           </div>
 
-          {/* Right Column: Sticky Trade Panel */}
+          {/* Sticky Trade Panel */}
           <div className="lg:col-span-1">
             <div className="sticky top-24">
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-gray-100 overflow-hidden">
@@ -188,10 +264,6 @@ export default function Home() {
                 <div className="bg-gray-50/50 p-4 border-b border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Order Ticket</span>
-                    <div className="flex bg-gray-200 rounded-lg p-0.5">
-                      <button className="px-3 py-1 text-xs font-bold bg-white rounded shadow-sm text-gray-900">Buy</button>
-                      <button className="px-3 py-1 text-xs font-bold text-gray-500 hover:text-gray-900">Sell</button>
-                    </div>
                   </div>
                   <h2 className="text-lg font-bold text-gray-900 leading-tight">
                     {selectedSide === 'yes' ? 'Buy Yes' : 'Buy No'} <span className="text-gray-400 font-normal">- {selectedCandidate.name}</span>
@@ -200,13 +272,13 @@ export default function Home() {
 
                 <div className="p-5 space-y-6">
 
-                  {/* Outcome Toggle (Visual Repeater) */}
+                  {/* Outcome Toggle */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setSelectedSide('yes')}
                       className={`py-3 rounded-lg border-2 font-bold transition-all ${selectedSide === 'yes'
-                          ? 'border-[#00d395] bg-emerald-50 text-emerald-800'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                        ? 'border-[#00d395] bg-emerald-50 text-emerald-800'
+                        : 'border-gray-100 text-gray-400 hover:border-gray-200'
                         }`}
                     >
                       <span className="block text-xs uppercase mb-1">Yes</span>
@@ -215,8 +287,8 @@ export default function Home() {
                     <button
                       onClick={() => setSelectedSide('no')}
                       className={`py-3 rounded-lg border-2 font-bold transition-all ${selectedSide === 'no'
-                          ? 'border-rose-500 bg-rose-50 text-rose-800'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                        ? 'border-rose-500 bg-rose-50 text-rose-800'
+                        : 'border-gray-100 text-gray-400 hover:border-gray-200'
                         }`}
                     >
                       <span className="block text-xs uppercase mb-1">No</span>
@@ -258,13 +330,16 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Main Interaction Button */}
-                  <button className="w-full py-4 bg-[#00d395] hover:bg-[#00c087] text-white font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]">
-                    Sign up to trade
+                  {/* Trade Button */}
+                  <button
+                    onClick={handleTrade}
+                    className="w-full py-4 bg-[#00d395] hover:bg-[#00c087] text-white font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]"
+                  >
+                    Place Order
                   </button>
 
                   <p className="text-center text-[10px] text-gray-400 leading-tight">
-                    Market limits apply. Trading involves risk. <br /> See Terms & Conditions.
+                    Simulation Mode. Prices update locally based on your trades.
                   </p>
 
                 </div>
