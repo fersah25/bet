@@ -42,7 +42,7 @@ export default function Home() {
       if (data && Array.isArray(data)) {
         const mappedCandidates: Candidate[] = data.map((item: any) => ({
           id: item?.id || 'unknown', // Fallback ID
-          name: item?.name || 'Unknown Candidate',
+          name: item?.candidate_name || item?.name || 'Unknown Candidate',
           initials: item?.initials || '??',
           color: item?.color || '#cccccc',
           pool: Number(item?.pool_amount) || 10, // Ensure number
@@ -181,8 +181,8 @@ export default function Home() {
                     <div
                       key={candidate?.id || Math.random()}
                       className={`group flex flex-row items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate?.id
-                          ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
-                          : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
+                        ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
+                        : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
                         }`}
                       onClick={() => candidate?.id && setSelectedCandidateId(candidate.id)}
                     >
@@ -226,8 +226,8 @@ export default function Home() {
                       {/* 5. Select Button */}
                       <button
                         className={`px-4 py-2 rounded-lg font-bold text-xs md:text-sm border transition-all ${selectedCandidateId === candidate?.id
-                            ? 'bg-[#00d395] text-white border-[#00d395] shadow-sm'
-                            : 'bg-white text-gray-400 border-gray-200 group-hover:border-gray-300'
+                          ? 'bg-[#00d395] text-white border-[#00d395] shadow-sm'
+                          : 'bg-white text-gray-400 border-gray-200 group-hover:border-gray-300'
                           }`}
                       >
                         {selectedCandidateId === candidate?.id ? 'Selected' : 'Select'}
