@@ -13,38 +13,6 @@ interface Candidate {
   image_url: string;
 }
 
-// --- Seed Data (New Roster with Images) ---
-const SEED_CANDIDATES = [
-  {
-    name: 'Kevin Warsh',
-    initials: 'KW',
-    color: '#00d395',
-    pool_amount: 10,
-    image_url: 'https://upload.wikimedia.org/wikipedia/commons/3/30/Kevin_Warsh%2C_Federal_Reserve_photo_portrait.jpg'
-  },
-  {
-    name: 'Judy Shelton',
-    initials: 'JS',
-    color: '#3b82f6',
-    pool_amount: 10,
-    image_url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQt5f8F11FOe5bcoDfWP_0Hls-iNqdT0pwIfw&s'
-  },
-  {
-    name: 'Arthur Laffer',
-    initials: 'AL',
-    color: '#a855f7',
-    pool_amount: 10,
-    image_url: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Arthur_Laffer_2019.jpg'
-  },
-  {
-    name: 'Bill Pulte',
-    initials: 'BP',
-    color: '#f43f5e',
-    pool_amount: 10,
-    image_url: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Director_of_the_Federal_Housing_Finance_Agency_William_John_Pulte.jpg'
-  },
-];
-
 export default function Home() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -60,53 +28,12 @@ export default function Home() {
   const fetchCandidates = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch Existing
       let { data, error } = await supabase
         .from('markets')
         .select('*')
         .order('id', { ascending: true });
 
       if (error) console.error('Error fetching candidates:', error);
-
-      // 2. Sync / Upsert Seed Data (if missing or to update images)
-      // We do this to ensure the DB has the latest images/candidates
-      if (!data || data.length === 0 || data.length < 4) {
-        console.log('Syncing Database...');
-        const updates = SEED_CANDIDATES.map(c => ({
-          ...c,
-          // We don't want to overwrite pool_amount if it exists, but UPSERT in standard SQL overwrites.
-          // For simplicity in this demo, we will only insert if empty logic or assume specific upsert logic if we had IDs.
-          // Since we don't have IDs for seed data, we match on NAME if possible, or just insert if empty.
-          // Safest for "Prototype" is: If empty, Insert.
-        }));
-
-        if (!data || data.length === 0) {
-          const { data: inserted } = await supabase
-            .from('markets')
-            .insert(updates)
-            .select();
-          if (inserted) data = inserted;
-        }
-      }
-
-      // 3. Fallback for "Updating Images" on existing records?
-      // In a real app we'd run a migration or admin script. 
-      // Here, we can try to update matches by name if we really want to force the image update.
-      // Let's rely on the user manual DB update or fresh start for now unless specific instructions to force-update.
-      // ACTUALLY: User said "Seed/Update... Upsert based on candidate name".
-      if (data && data.length > 0) {
-        const { error: upsertError } = await supabase
-          .from('markets')
-          .upsert(SEED_CANDIDATES, { onConflict: 'name', ignoreDuplicates: false }) // Postgres requires constraint on name for this to work perfectly without ID
-          .select();
-
-        if (!upsertError) {
-          // Re-fetch to get the updated images
-          const { data: refreshed } = await supabase.from('markets').select('*').order('id', { ascending: true });
-          if (refreshed) data = refreshed;
-        }
-      }
-
 
       if (data) {
         const mappedCandidates: Candidate[] = data.map((item: any) => ({
@@ -235,9 +162,9 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-gray-900">Market Analysis</h3>
+              <h3 className="text-lg font-bold text-gray-900">Chart coming soon</h3>
               <p className="text-sm text-gray-500 max-w-xs mt-1">
-                Chart history will be available after more trades are placed on the new candidates.
+                Historical data is being collected. Check back later for trends.
               </p>
             </div>
 
@@ -254,8 +181,8 @@ export default function Home() {
                   <div
                     key={candidate.id}
                     className={`group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id
-                        ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
-                        : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
+                      ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
+                      : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
                       }`}
                     onClick={() => setSelectedCandidateId(candidate.id)}
                   >
@@ -265,11 +192,11 @@ export default function Home() {
                         <img
                           src={candidate.image_url}
                           alt={candidate.name}
-                          className="h-12 w-12 rounded-full object-cover border-2 border-white shadow-md"
+                          className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md bg-gray-100"
                         />
                       ) : (
                         <div
-                          className="h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-md relative"
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-md relative"
                           style={{ backgroundColor: candidate.color }}
                         >
                           {candidate.initials}
@@ -290,8 +217,8 @@ export default function Home() {
                     {/* Action Button */}
                     <button
                       className={`sm:w-32 py-2.5 rounded-lg font-bold text-sm border transition-all ${selectedCandidateId === candidate.id
-                          ? 'bg-[#00d395] text-white border-[#00d395] shadow-md shadow-emerald-200'
-                          : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                        ? 'bg-[#00d395] text-white border-[#00d395] shadow-md shadow-emerald-200'
+                        : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
                         }`}
                     >
                       {selectedCandidateId === candidate.id ? 'Selected' : 'Select'}
@@ -318,7 +245,7 @@ export default function Home() {
                           <img
                             src={selectedCandidate.image_url}
                             alt={selectedCandidate.name}
-                            className="w-8 h-8 rounded-full object-cover border border-white shadow-sm"
+                            className="w-8 h-8 rounded-full object-cover border border-white shadow-sm bg-gray-100"
                           />
                         )}
                         <h2 className="text-lg font-bold text-gray-900 leading-tight">
