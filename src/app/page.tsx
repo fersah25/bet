@@ -2,174 +2,231 @@
 
 import { useState } from 'react';
 
+// --- Types ---
+interface MarketOption {
+  id: string;
+  name: string;
+  price: number; // 0-1 probability
+  multiplier: number; // e.g., 2.5x
+}
+
+interface Market {
+  id: string;
+  title: string;
+  volume: string;
+  category: string;
+  icon: string; // Emoji for now
+  options: MarketOption[];
+}
+
+// --- Mock Data ---
+const MARKETS: Market[] = [
+  {
+    id: 'm1',
+    title: 'Will Bitcoin hit $100k in 2024?',
+    volume: '$3.2M',
+    category: 'Crypto',
+    icon: '₿',
+    options: [
+      { id: 'o1', name: 'Yes', price: 0.32, multiplier: 3.1 },
+      { id: 'o2', name: 'No', price: 0.68, multiplier: 1.4 },
+    ],
+  },
+  {
+    id: 'm2',
+    title: 'Fed Rate Cut in March?',
+    volume: '$5.1M',
+    category: 'Economics',
+    icon: '🏦',
+    options: [
+      { id: 'o3', name: 'Yes', price: 0.15, multiplier: 6.6 },
+      { id: 'o4', name: 'No', price: 0.85, multiplier: 1.1 },
+    ],
+  },
+  {
+    id: 'm3',
+    title: 'Super Bowl Winner: Chiefs?',
+    volume: '$890k',
+    category: 'Sports',
+    icon: '🏈',
+    options: [
+      { id: 'o5', name: 'Chiefs', price: 0.60, multiplier: 1.6 },
+      { id: 'o6', name: 'Field', price: 0.40, multiplier: 2.5 },
+    ],
+  },
+  {
+    id: 'm4',
+    title: 'Ethereum to flip Bitcoin market cap?',
+    volume: '$1.5M',
+    category: 'Crypto',
+    icon: 'Ξ',
+    options: [
+      { id: 'o7', name: 'Yes', price: 0.05, multiplier: 20.0 },
+      { id: 'o8', name: 'No', price: 0.95, multiplier: 1.05 },
+    ],
+  },
+];
+
 export default function Home() {
-  const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
-  const [selectedOutcome, setSelectedOutcome] = useState<'yes' | 'no'>('yes');
+  const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
+  const [selectedOption, setSelectedOption] = useState<MarketOption | null>(null);
   const [amount, setAmount] = useState<string>('');
 
-  // Mock Data
-  const question = "Will Bitcoin finish the day above $75,000?";
-  const prices = { yes: 0.65, no: 0.35 };
-  const returns = {
-    yes: 'Win $1.00 if Yes',
-    no: 'Win $1.00 if No'
+  const openModal = (market: Market, option: MarketOption) => {
+    setSelectedMarket(market);
+    setSelectedOption(option);
+    setAmount('');
   };
 
-  const estimatedPayout = amount ? (parseFloat(amount) / (selectedOutcome === 'yes' ? prices.yes : prices.no)).toFixed(2) : '0.00';
+  const closeModal = () => {
+    setSelectedMarket(null);
+    setSelectedOption(null);
+  };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // allow only numbers and decimals
     const val = e.target.value;
     if (val === '' || /^\d*\.?\d*$/.test(val)) {
       setAmount(val);
     }
   };
 
+  // Calculations for modal
+  const sharePrice = selectedOption ? selectedOption.price : 0;
+  const estimatedShares = amount && sharePrice > 0 ? (parseFloat(amount) / sharePrice).toFixed(2) : '0';
+  const potentialPayout = amount && selectedOption ? (parseFloat(amount) * selectedOption.multiplier).toFixed(2) : '0.00';
+
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900 font-sans">
 
-      {/* Navbar Placeholder */}
-      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="text-xl font-bold tracking-tight text-blue-600">BET</div>
+      {/* Navbar */}
+      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center space-x-2">
+          <div className="bg-blue-600 text-white font-bold p-1 rounded">BP</div>
+          <span className="text-xl font-bold tracking-tight text-gray-900">BeetPro</span>
+        </div>
         <div className="text-sm font-medium text-gray-500">Balance: $1,000.00</div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Top Markets</h2>
 
-          {/* Left Column: Chart & Market Info */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">{question}</h1>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                  <span>Volume: <strong>$1.2M</strong></span>
-                  <span>•</span>
-                  <span>Ends: <strong>Today, 4:00 PM</strong></span>
+        {/* Market Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {MARKETS.map((market) => (
+            <div key={market.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
+
+              {/* Card Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex gap-3">
+                  <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-xl">
+                    {market.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg leading-tight text-gray-900">{market.title}</h3>
+                    <p className="text-xs text-gray-500 mt-1">{market.category} • Vol: {market.volume}</p>
+                  </div>
                 </div>
               </div>
-              {/* TradingView Widget Container */}
-              <div className="h-[500px] w-full bg-gray-50 relative">
-                {/* Visual Placeholder for where the chart would interact if we had API access, using iframe for now */}
-                <iframe
-                  className="w-full h-full"
-                  src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_76d87&symbol=COINBASE%3ABTCUSD&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=1&saveimage=1&toolbarbg=F1F3F6&studies=[]&hideideas=1&theme=Light&style=1&timezone=Etc%2FUTC&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=COINBASE%3ABTCUSD"
-                  style={{ border: 'none' }}
-                  title="Bitcoin Chart"
-                />
+
+              {/* Options List */}
+              <div className="space-y-3">
+                {market.options.map((option) => (
+                  <div key={option.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-2 pr-2">
+                    <div className="flex flex-col pl-2">
+                      <span className="text-sm font-medium text-gray-900">{option.name}</span>
+                      <span className="text-xs text-gray-400">Mul: {option.multiplier}x</span>
+                    </div>
+
+                    <button
+                      onClick={() => openModal(market, option)}
+                      className="group relative flex items-center justify-center w-20 py-2 bg-white border border-gray-200 hover:border-blue-400 hover:text-blue-600 text-gray-700 font-semibold rounded transition-colors"
+                    >
+                      {Math.round(option.price * 100)}%
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
+          ))}
+        </div>
+      </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold mb-4">About this market</h3>
-              <p className="text-gray-600 leading-relaxed">
-                This market asks whether Bitcoin (BTC) will have a price above $75,000 at the daily close (Market Close 4:00 PM ET). The resolution source will be the official Coinbase price.
+      {/* Trade Modal */}
+      {selectedMarket && selectedOption && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+            onClick={closeModal}
+          ></div>
+
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Buy Prediction</h3>
+                <p className="font-bold text-gray-900 text-lg">{selectedOption.name} <span className="text-gray-400 font-normal">on {selectedMarket.title}</span></p>
+              </div>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 p-1">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Amount Input */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Amount</label>
+                  <span className="text-xs text-blue-600 font-medium cursor-pointer">Max: $1000</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl md:text-2xl font-light">$</span>
+                  <input
+                    type="text"
+                    value={amount}
+                    onChange={handleAmountChange}
+                    placeholder="0"
+                    className="w-full pl-8 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-3xl font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00d395]/20 focus:border-[#00d395] transition-all"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Avg Price</p>
+                  <p className="font-medium text-gray-900">{Math.round(selectedOption.price * 100)}¢</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-500">Est. Shares</p>
+                  <p className="font-medium text-gray-900">{estimatedShares}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Multiplier</p>
+                  <p className="font-medium text-green-600">{selectedOption.multiplier}x</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-500">Est. Payout</p>
+                  <p className="font-medium text-gray-900">${potentialPayout}</p>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button className="w-full py-4 bg-[#00d395] hover:bg-[#00c087] text-white font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]">
+                Place Order for ${amount || '0.00'}
+              </button>
+
+              <p className="text-center text-xs text-gray-400 mt-2">
+                You are purchasing options at {Math.round(selectedOption.price * 100)}¢. Prices may fluctuate.
               </p>
             </div>
           </div>
-
-          {/* Right Column: Trading Interface */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden sticky top-24">
-
-              {/* Buy / Sell Toggle */}
-              <div className="grid grid-cols-2 border-b border-gray-200">
-                <button
-                  onClick={() => setOrderSide('buy')}
-                  className={`py-3 text-sm font-bold uppercase transition-colors ${orderSide === 'buy' ? 'text-emerald-500 border-b-2 border-emerald-500 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
-                >
-                  Buy
-                </button>
-                <button
-                  onClick={() => setOrderSide('sell')}
-                  className={`py-3 text-sm font-bold uppercase transition-colors ${orderSide === 'sell' ? 'text-rose-500 border-b-2 border-rose-500 bg-rose-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
-                >
-                  Sell
-                </button>
-              </div>
-
-              <div className="p-6 space-y-6">
-
-                {/* Outcome Selection */}
-                <div className="space-y-3">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Select Outcome</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setSelectedOutcome('yes')}
-                      className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${selectedOutcome === 'yes'
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                          : 'border-gray-200 hover:border-emerald-200 hover:bg-gray-50 text-gray-600'
-                        }`}
-                    >
-                      <span className="text-lg font-bold">YES</span>
-                      <span className="text-sm font-medium">{orderSide === 'buy' ? '65¢' : '35¢'}</span>
-                    </button>
-                    <button
-                      onClick={() => setSelectedOutcome('no')}
-                      className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${selectedOutcome === 'no'
-                          ? 'border-rose-500 bg-rose-50 text-rose-700'
-                          : 'border-gray-200 hover:border-rose-200 hover:bg-gray-50 text-gray-600'
-                        }`}
-                    >
-                      <span className="text-lg font-bold">NO</span>
-                      <span className="text-sm font-medium">{orderSide === 'buy' ? '35¢' : '65¢'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Amount Input */}
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount</label>
-                    <span className="text-xs text-blue-600 font-medium cursor-pointer">Max: $1000</span>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                    <input
-                      type="text"
-                      value={amount}
-                      onChange={handleAmountChange}
-                      placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-lg"
-                    />
-                  </div>
-                </div>
-
-                {/* Order Summary */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                  <div className="flex justify-between text-gray-500">
-                    <span>Price per share</span>
-                    <span className="font-medium text-gray-900">
-                      {selectedOutcome === 'yes' ? (orderSide === 'buy' ? '$0.65' : '$0.35') : (orderSide === 'buy' ? '$0.35' : '$0.65')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>Potential Payout</span>
-                    <span className="font-medium text-emerald-600">${estimatedPayout}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500 pt-2 border-t border-gray-200">
-                    <span>Fees</span>
-                    <span className="font-medium text-gray-900">$0.00</span>
-                  </div>
-                </div>
-
-                {/* Action Button */}
-                <button className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-transform active:scale-[0.98] ${orderSide === 'buy'
-                    ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20'
-                    : 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20'
-                  }`}>
-                  {orderSide === 'buy' ? 'Place Order' : 'Sell Position'}
-                </button>
-
-                <p className="text-center text-xs text-gray-400">
-                  By trading, you agree to the Terms of Service.
-                </p>
-              </div>
-            </div>
-          </div>
-
         </div>
-      </div>
+      )}
     </main>
   );
 }
