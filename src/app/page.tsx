@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useAppKit } from '@reown/appkit/react';
+import { useAccount, useChainId, useSwitchChain, useSendTransaction } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
+import { parseEther } from 'viem';
 
 // --- Types ---
 interface Candidate {
@@ -20,9 +24,17 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTrading, setIsTrading] = useState<boolean>(false);
 
+  // Wallet Hooks
+  const { open } = useAppKit();
+  const { isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const { sendTransactionAsync } = useSendTransaction();
+
   // Fetch Data
   useEffect(() => {
     fetchCandidates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCandidates = async () => {
@@ -40,6 +52,7 @@ export default function Home() {
       }
 
       if (data && Array.isArray(data)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mappedCandidates: Candidate[] = data.map((item: any) => ({
           id: item?.id || 'unknown', // Fallback ID
           name: item?.candidate_name || item?.name || 'Unknown Candidate',
@@ -94,10 +107,19 @@ export default function Home() {
   const handleTrade = async () => {
     if (!amount || isNaN(parseFloat(amount)) || !selectedCandidate) return;
     setIsTrading(true);
-    const tradeAmount = parseFloat(amount);
 
     try {
+      // 1. Send Dummy Transaction
+      const hash = await sendTransactionAsync({
+        to: '0x000000000000000000000000000000000000dead',
+        value: parseEther('0.0001'),
+      });
+
+      console.log('Transaction sent:', hash);
+
+      // 2. Update Supabase (Logic remains the same for now)
       const currentPool = selectedCandidate.pool || 0;
+      const tradeAmount = parseFloat(amount);
       const newPoolAmount = currentPool + tradeAmount;
 
       const { error } = await supabase
@@ -114,10 +136,17 @@ export default function Home() {
       setCandidates(newCandidates);
 
       setAmount('');
+      alert('Order Placed Successfully! Tx Hash: ' + hash.slice(0, 10) + '...');
 
-    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
       console.error('Trade failed:', err);
-      alert('Trade failed. Please try again.');
+      // Handle User Rejected
+      if (err.shortMessage) {
+        alert('Trade failed: ' + err.shortMessage);
+      } else {
+        alert('Trade failed. Please try again.');
+      }
     } finally {
       setIsTrading(false);
     }
@@ -134,6 +163,42 @@ export default function Home() {
     )
   }
 
+  // Button Logic Helper
+  const renderTradeButton = () => {
+    if (!isConnected) {
+      return (
+        <button
+          onClick={() => open()}
+          className="w-full py-4 bg-gray-900 text-white font-bold text-lg rounded-xl shadow-lg transition-all hover:bg-gray-800"
+        >
+          Connect Wallet
+        </button>
+      )
+    }
+
+    if (chainId !== baseSepolia.id) {
+      return (
+        <button
+          onClick={() => switchChain({ chainId: baseSepolia.id })}
+          className="w-full py-4 bg-yellow-500 text-white font-bold text-lg rounded-xl shadow-lg transition-all hover:bg-yellow-600"
+        >
+          Switch to Base Sepolia
+        </button>
+      )
+    }
+
+    return (
+      <button
+        onClick={handleTrade}
+        className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'
+          }`}
+        disabled={!amount || isTrading}
+      >
+        {isTrading ? 'Processing...' : 'Place Order'}
+      </button>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-white text-gray-900 font-sans">
 
@@ -144,8 +209,8 @@ export default function Home() {
           <span className="text-xl font-bold tracking-tight text-gray-900">KalshiClone</span>
         </div>
         <div className="flex items-center gap-4">
-          <button className="text-sm font-semibold text-gray-500 hover:text-gray-900">Log in</button>
-          <button className="text-sm font-semibold bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800">Sign up</button>
+          {/* Wallet Connect Button (Custom or AppKit specific) */}
+          <appkit-button />
         </div>
       </nav>
 
@@ -326,15 +391,8 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Trade Button */}
-                      <button
-                        onClick={handleTrade}
-                        className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'
-                          }`}
-                        disabled={!amount || isTrading}
-                      >
-                        {isTrading ? 'Processing...' : 'Place Order'}
-                      </button>
+                      {/* Trade Button (Dynamic) */}
+                      {renderTradeButton()}
 
                       <p className="text-center text-[10px] text-gray-400 leading-tight">
                         Pari-mutuel logic active. <br /> Your bet adjusts odds for everyone.
