@@ -463,12 +463,6 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
                     </div>
                 )}
 
-                {marketResolved && !hasWinningBet && (
-                    <div className="bg-gray-100 rounded-xl shadow-sm p-5 mb-6 text-gray-600 text-center border border-gray-200">
-                        <h3 className="text-lg font-bold">Market Resolved</h3>
-                        <p className="text-sm">The outcome was {winningOutcome}.</p>
-                    </div>
-                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left: Candidates */}
