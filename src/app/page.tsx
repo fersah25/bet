@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { createWalletClient, custom, parseEther } from 'viem';
+import { createWalletClient, custom, parseEther, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import Navbar from '@/components/Navbar';
 import { bettingContractABI } from '@/constants/abi';
 
-const CONTRACT_ADDRESS = '0x86428644eF79dd83f72dF3Ec3bE0bD4d0f58b428';
+const CONTRACT_ADDRESS = '0xE5ECa139A20BDCC71Fd31c1bB7ffa10a9013D35f';
 const ETH_PRICE = 2000; // Hardcoded ETH Price for Demo conversion
 
 
@@ -30,6 +30,11 @@ export default function Home() {
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTrading, setIsTrading] = useState<boolean>(false);
+  const [endTime, setEndTime] = useState<number | null>(null);
+  const [contractOwner, setContractOwner] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [isBettingActive, setIsBettingActive] = useState<boolean>(false);
+  const [durationInput, setDurationInput] = useState<string>('60');
 
   // Wallet Hooks
   const { login, authenticated } = usePrivy();
@@ -39,8 +44,77 @@ export default function Home() {
   // Fetch Data
   useEffect(() => {
     fetchCandidates();
+    fetchContractData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const fetchContractData = async () => {
+    try {
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http()
+      });
+
+      const fetchedOwner = await publicClient.readContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: bettingContractABI,
+        functionName: 'owner',
+      }) as string;
+
+      const fetchedEndTime = await publicClient.readContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: bettingContractABI,
+        functionName: 'endTime',
+      }) as bigint;
+
+      setContractOwner(fetchedOwner.toLowerCase());
+      setEndTime(Number(fetchedEndTime));
+    } catch (err) {
+      console.error('Error fetching contract data:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (endTime === null) return;
+
+    if (endTime === 0) {
+      setTimeLeft('Market Pending');
+      setIsBettingActive(false);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const diff = endTime - now;
+
+      if (diff <= 0) {
+        setTimeLeft('Betting Closed');
+        setIsBettingActive(false);
+        return false;
+      } else {
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+
+        if (h > 0) {
+          setTimeLeft(`${h}h ${m.toString().padStart(2, '0')}m`);
+        } else {
+          setTimeLeft(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+        }
+        setIsBettingActive(true);
+        return true;
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(() => {
+      if (!updateTimer()) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [endTime]);
 
   const fetchCandidates = async () => {
     setIsLoading(true);
@@ -108,6 +182,34 @@ export default function Home() {
   const projectedMultiplier = projectedPool > 0 ? projectedTotal / projectedPool : 0;
   const estimatedPayout = (amountNum * projectedMultiplier).toFixed(2);
 
+
+  const handleStartBetting = async () => {
+    if (!wallet) return;
+    try {
+      const provider = await wallet.getEthereumProvider();
+      const walletClient = createWalletClient({
+        chain: baseSepolia,
+        transport: custom(provider),
+      });
+      const [address] = await walletClient.getAddresses();
+
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: bettingContractABI,
+        functionName: 'startBetting',
+        args: [BigInt(durationInput)],
+        account: address,
+        chain: baseSepolia,
+      });
+
+      alert(`Betting Started! Tx Hash: ${hash.slice(0, 10)}...`);
+      setTimeout(fetchContractData, 5000);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to start betting: ' + (err.shortMessage || err.message));
+    }
+  };
 
   const handleTrade = async () => {
     if (!amount || isNaN(parseFloat(amount)) || !selectedCandidate) return;
@@ -256,11 +358,11 @@ export default function Home() {
     return (
       <button
         onClick={handleTrade}
-        className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'
+        className={`w-full py-4 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading && isBettingActive ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'
           }`}
-        disabled={!amount || isTrading}
+        disabled={!amount || isTrading || !isBettingActive}
       >
-        {isTrading ? 'Processing...' : 'Place Order'}
+        {!isBettingActive ? 'Betting Closed' : isTrading ? 'Processing...' : 'Place Order'}
       </button>
     )
   }
@@ -280,13 +382,40 @@ export default function Home() {
 
             {/* Header */}
             <div>
-              <div className="flex items-center space-x-2 mb-2">
-                <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">Economics</span>
-                <span className="text-gray-400 text-sm">• Vol ${totalPool.toFixed(0)}</span>
+              <div className="flex items-center space-x-4 mb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">Economics</span>
+                  <span className="text-gray-400 text-sm">• Vol ${totalPool.toFixed(0)}</span>
+                </div>
+                {timeLeft && (
+                  <div className={`px-3 py-1 rounded-full text-sm font-bold border ${isBettingActive ? 'bg-blue-50 text-blue-600 border-blue-200 animate-pulse' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                    ⏳ {timeLeft}
+                  </div>
+                )}
               </div>
               <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
                 Who will Trump nominate as Fed Chair?
               </h1>
+
+              {/* Admin Panel */}
+              {authenticated && wallet && wallet.address.toLowerCase() === contractOwner && (
+                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-wrap items-center gap-4">
+                  <span className="text-orange-800 font-bold">Admin Panel:</span>
+                  <input
+                    type="number"
+                    value={durationInput}
+                    onChange={e => setDurationInput(e.target.value)}
+                    className="border border-orange-300 p-2 rounded w-24 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Mins"
+                  />
+                  <button
+                    onClick={handleStartBetting}
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-4 py-2 rounded shadow transition-all"
+                  >
+                    Start Betting
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* CHART REMOVED AS REQUESTED - CLEAN SLATE */}
