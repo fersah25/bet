@@ -36,6 +36,12 @@ export default function Home() {
   const [isBettingActive, setIsBettingActive] = useState<boolean>(false);
   const [durationInput, setDurationInput] = useState<string>('60');
 
+  // New states for claiming
+  const [marketResolved, setMarketResolved] = useState<boolean>(false);
+  const [winningCandidate, setWinningCandidate] = useState<string>('');
+  const [hasWinningBet, setHasWinningBet] = useState<boolean>(false);
+  const [isClaiming, setIsClaiming] = useState<boolean>(false);
+
   // Wallet Hooks
   const { login, authenticated } = usePrivy();
   const { wallets } = useWallets();
@@ -67,8 +73,22 @@ export default function Home() {
         functionName: 'endTime',
       }) as bigint;
 
+      const fetchedMarketResolved = await publicClient.readContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: bettingContractABI,
+        functionName: 'marketResolved',
+      }) as boolean;
+
+      const fetchedWinningCandidate = await publicClient.readContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: bettingContractABI,
+        functionName: 'winningCandidate',
+      }) as string;
+
       setContractOwner(fetchedOwner.toLowerCase());
       setEndTime(Number(fetchedEndTime));
+      setMarketResolved(fetchedMarketResolved);
+      setWinningCandidate(fetchedWinningCandidate);
     } catch (err) {
       console.error('Error fetching contract data:', err);
     }
@@ -115,6 +135,65 @@ export default function Home() {
 
     return () => clearInterval(interval);
   }, [endTime]);
+
+  useEffect(() => {
+    const fetchUserWinningBet = async () => {
+      if (!wallet || !marketResolved || !winningCandidate) {
+        setHasWinningBet(false);
+        return;
+      }
+      try {
+        const publicClient = createPublicClient({
+          chain: baseSepolia,
+          transport: http()
+        });
+        const betAmount = await publicClient.readContract({
+          address: CONTRACT_ADDRESS as `0x${string}`,
+          abi: bettingContractABI,
+          functionName: 'userBets',
+          args: [wallet.address as `0x${string}`, winningCandidate]
+        }) as bigint;
+        setHasWinningBet(betAmount > 0n);
+      } catch (err) {
+        console.error('Error fetching user winning bet:', err);
+        setHasWinningBet(false);
+      }
+    };
+    fetchUserWinningBet();
+  }, [wallet, marketResolved, winningCandidate]);
+
+  const handleClaim = async () => {
+    if (!wallet) return;
+    setIsClaiming(true);
+    try {
+      const provider = await wallet.getEthereumProvider();
+      const walletClient = createWalletClient({
+        chain: baseSepolia,
+        transport: custom(provider),
+      });
+      const [address] = await walletClient.getAddresses();
+
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: bettingContractABI,
+        functionName: 'claim',
+        account: address,
+        chain: baseSepolia,
+      });
+
+      alert(`Winnings transferred to your wallet! Tx Hash: ${hash.slice(0, 10)}...`);
+      setHasWinningBet(false); // Hide the claim button on success
+    } catch (err: any) {
+      console.error('Claim failed:', err);
+      if (err.shortMessage) {
+        alert('Claim failed: ' + err.shortMessage);
+      } else {
+        alert('Claim failed. Please try again.');
+      }
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   const fetchCandidates = async () => {
     setIsLoading(true);
@@ -514,6 +593,22 @@ export default function Home() {
           {/* Sticky Trade Panel */}
           <div className="lg:col-span-1">
             <div className="sticky top-24">
+
+              {/* Claim Winnings Banner */}
+              {marketResolved && hasWinningBet && (
+                <div className="bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-xl shadow-lg p-5 mb-6 text-white text-center transform transition-all hover:scale-[1.02]">
+                  <h3 className="text-xl font-bold mb-2">🎉 You Won!</h3>
+                  <p className="text-sm opacity-90 mb-4">You successfully predicted {winningCandidate}.</p>
+                  <button
+                    onClick={handleClaim}
+                    disabled={isClaiming}
+                    className="w-full py-3 bg-white text-emerald-600 font-bold rounded-lg shadow hover:bg-emerald-50 transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
+                  >
+                    {isClaiming ? 'Claiming...' : 'Claim Your Winnings'}
+                  </button>
+                </div>
+              )}
+
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-gray-100 overflow-hidden text-sm">
                 {selectedCandidate ? (
                   <>
