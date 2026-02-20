@@ -442,7 +442,7 @@ export default function Home() {
                   return (
                     <div
                       key={candidate?.id || Math.random()}
-                      className={`group flex flex-row items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate?.id
+                      className={`group relative overflow-hidden flex flex-row items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate?.id
                         ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100'
                         : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
                         }`}
@@ -487,13 +487,19 @@ export default function Home() {
 
                       {/* 5. Select Button */}
                       <button
-                        className={`px-4 py-2 rounded-lg font-bold text-xs md:text-sm border transition-all ${selectedCandidateId === candidate?.id
+                        className={`px-4 py-2 rounded-lg font-bold text-xs md:text-sm border transition-all z-10 ${selectedCandidateId === candidate?.id
                           ? 'bg-[#00d395] text-white border-[#00d395] shadow-sm'
                           : 'bg-white text-gray-400 border-gray-200 group-hover:border-gray-300'
                           }`}
                       >
                         {selectedCandidateId === candidate?.id ? 'Selected' : 'Select'}
                       </button>
+
+                      {/* Visual Progress Bar Overlay */}
+                      <div
+                        className="absolute left-0 bottom-0 h-1 bg-[#00d395] rounded-bl-xl transition-all duration-500 ease-out opacity-20 group-hover:opacity-40"
+                        style={{ width: `${probabilityPercent}%`, backgroundColor: candidate?.color || '#00d395' }}
+                      />
                     </div>
                   );
                 })
