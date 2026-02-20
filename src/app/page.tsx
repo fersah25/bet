@@ -11,13 +11,14 @@ const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x
 
 export default function Home() {
   const [fedCandidates, setFedCandidates] = useState<Candidate[]>([]);
+  const [btcCandidates, setBtcCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    fetchFedCandidates();
+    fetchCandidates();
   }, []);
 
-  const fetchFedCandidates = async () => {
+  const fetchCandidates = async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -31,21 +32,26 @@ export default function Home() {
 
       if (data && Array.isArray(data)) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mappedCandidates: Candidate[] = data.map((item: any) => ({
+        const mappedCandidates: (Candidate & { category: string })[] = data.map((item: any) => ({
           id: item?.id || 'unknown',
           name: item?.candidate_name || item?.name || 'Unknown Candidate',
           initials: item?.initials || '??',
           color: item?.color || '#cccccc',
           pool: Number(item?.pool_amount) || 0,
           image_url: item?.image_url || '',
+          category: item?.category || 'fed',
         }));
-        setFedCandidates(mappedCandidates);
+
+        setFedCandidates(mappedCandidates.filter(c => c.category === 'fed'));
+        setBtcCandidates(mappedCandidates.filter(c => c.category === 'bitcoin'));
       } else {
         setFedCandidates([]);
+        setBtcCandidates([]);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
       setFedCandidates([]);
+      setBtcCandidates([]);
     } finally {
       setIsLoading(false);
     }
@@ -65,6 +71,36 @@ export default function Home() {
       if (error) console.error('Supabase update error:', error);
     } catch (err) {
       console.error('Supabase update failed:', err);
+    }
+  };
+
+  const handleBtcTradeAction = async (candidateName: string, tradeAmount: number) => {
+    const candidate = btcCandidates.find((c) => c.name === candidateName);
+    if (!candidate) return;
+    const newPoolAmount = (candidate.pool || 0) + tradeAmount;
+
+    try {
+      const { error } = await supabase
+        .from('markets')
+        .update({ pool_amount: newPoolAmount })
+        .eq('id', candidate.id);
+
+      if (error) console.error('Supabase update error:', error);
+    } catch (err) {
+      console.error('Supabase update failed:', err);
+    }
+  };
+
+  const handleBtcRestartAction = async () => {
+    try {
+      for (const candidate of btcCandidates) {
+        await supabase
+          .from('markets')
+          .update({ pool_amount: 0 })
+          .eq('id', candidate.id);
+      }
+    } catch (err) {
+      console.error('Supabase restart update failed:', err);
     }
   };
 
@@ -101,7 +137,12 @@ export default function Home() {
 
           {/* Right Column: Bitcoin Market */}
           <div className="flex flex-col h-full space-y-6">
-            <BitcoinBettingWidget contractAddress={CONTRACT_ADDRESS_BTC} />
+            <BitcoinBettingWidget
+              contractAddress={CONTRACT_ADDRESS_BTC}
+              initialCandidates={btcCandidates}
+              onTradeAction={handleBtcTradeAction}
+              onRestartAction={handleBtcRestartAction}
+            />
           </div>
         </div>
       </div>

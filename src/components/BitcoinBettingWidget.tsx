@@ -5,14 +5,18 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { createWalletClient, custom, parseEther, formatEther, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { bitcoinBettingAbi } from '@/constants/bitcoinBettingAbi';
+import { Candidate } from './BettingWidget';
 
 const ETH_PRICE = 2000; // Hardcoded ETH Price for Demo conversion
 
 export interface BitcoinBettingWidgetProps {
     contractAddress: string;
+    initialCandidates?: Candidate[];
+    onTradeAction?: (candidateName: string, amountUSD: number) => Promise<void>;
+    onRestartAction?: () => Promise<void>;
 }
 
-export default function BitcoinBettingWidget({ contractAddress }: BitcoinBettingWidgetProps) {
+export default function BitcoinBettingWidget({ contractAddress, initialCandidates = [], onTradeAction, onRestartAction }: BitcoinBettingWidgetProps) {
     const [amount, setAmount] = useState<string>('');
     const [isTrading, setIsTrading] = useState<boolean>(false);
     const [selectedCandidateId, setSelectedCandidateId] = useState<string>('Yes');
@@ -201,6 +205,9 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
             alert(`Betting Started / Restarted! Tx Hash: ${hash.slice(0, 10)}...`);
             setMarketResolved(false);
             setWinningOutcome('');
+            if (onRestartAction) {
+                await onRestartAction();
+            }
             setTimeout(fetchContractData, 5000);
         } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error(err);
@@ -272,6 +279,9 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
 
             alert(`Bet Placed for ${selectedCandidateId}! Tx Hash: ${hash.slice(0, 10)}...`);
             setAmount('');
+            if (onTradeAction) {
+                await onTradeAction(selectedCandidateId, amountUSD);
+            }
             setTimeout(fetchContractData, 5000);
         } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Trade failed:', err);
@@ -319,27 +329,32 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
     const yesPoolUSD = Math.round(yesPoolETH * ETH_PRICE);
     const noPoolUSD = Math.round(noPoolETH * ETH_PRICE);
 
-    const candidates = [
-        { id: 'Yes', name: 'Yes', color: '#00d395', pool: yesPoolUSD },
-        { id: 'No', name: 'No', color: '#ff4d4d', pool: noPoolUSD }
-    ];
+    // Prefer Supabase candidate data for UI if available, fallback to contract data
+    const candidates = initialCandidates.length > 0
+        ? initialCandidates
+        : [
+            { id: 'Yes', name: 'Yes', initials: 'Y', color: '#00d395', pool: yesPoolUSD },
+            { id: 'No', name: 'No', initials: 'N', color: '#ff4d4d', pool: noPoolUSD }
+        ];
+
+    const totalPoolUSDUI = candidates.reduce((sum, c) => sum + (c.pool || 0), 0);
 
     const getCandidateStats = (pool: number) => {
-        if (totalPoolUSD === 0) {
+        if (totalPoolUSDUI === 0) {
             return { probabilityPercent: 50, multiplier: 2 };
         }
-        const probability = pool / totalPoolUSD;
+        const probability = pool / totalPoolUSDUI;
         const probabilityPercent = probability * 100;
-        const multiplier = pool > 0 ? totalPoolUSD / pool : 0;
+        const multiplier = pool > 0 ? totalPoolUSDUI / pool : 0;
         return { probabilityPercent, multiplier };
     };
 
-    const selectedCandidate = candidates.find(c => c.id === selectedCandidateId) || candidates[0];
+    const selectedCandidate = candidates.find(c => c.name === selectedCandidateId) || candidates[0];
     const selectedStats = getCandidateStats(selectedCandidate.pool);
 
     const amountNum = parseFloat(amount) || 0;
-    const projectedTotalUSD = totalPoolUSD + amountNum;
-    const projectedPoolUSD = selectedCandidate.pool + amountNum;
+    const projectedTotalUSD = totalPoolUSDUI + amountNum;
+    const projectedPoolUSD = (selectedCandidate.pool || 0) + amountNum;
     const projectedMultiplier = projectedPoolUSD > 0 ? projectedTotalUSD / projectedPoolUSD : 0;
     const estimatedPayout = (amountNum * projectedMultiplier).toFixed(2);
 
@@ -399,7 +414,7 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
                 <div className="flex items-center space-x-4 mb-3">
                     <div className="flex items-center space-x-2">
                         <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">Crypto</span>
-                        <span className="text-gray-400 text-xs font-semibold">• Vol ${totalPoolUSD.toFixed(0)}</span>
+                        <span className="text-gray-400 text-xs font-semibold">• Vol ${totalPoolUSDUI.toFixed(0)}</span>
                     </div>
                     {timeLeft && (
                         <div className={`px-2 py-0.5 rounded-full text-xs font-bold border ${isBettingActive ? 'bg-blue-50 text-blue-600 border-blue-200 animate-pulse' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
@@ -473,22 +488,22 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
                             return (
                                 <div
                                     key={candidate.id}
-                                    className={`group relative overflow-hidden flex items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
-                                    onClick={() => setSelectedCandidateId(candidate.id)}
+                                    className={`group relative overflow-hidden flex items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.name ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
+                                    onClick={() => setSelectedCandidateId(candidate.name)}
                                 >
                                     <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 text-white" style={{ backgroundColor: candidate.color }}>
-                                        {candidate.name.charAt(0)}
+                                        {candidate.initials || candidate.name.charAt(0)}
                                     </div>
                                     <div className="ml-3 flex-1">
                                         <h4 className="font-bold text-gray-900 text-sm">{candidate.name}</h4>
                                     </div>
                                     <div className="text-right mx-2 min-w-[50px]">
-                                        <span className="block font-bold text-gray-900 text-base">{totalPoolUSD > 0 ? probabilityPercent.toFixed(0) : 50}%</span>
+                                        <span className="block font-bold text-gray-900 text-base">{totalPoolUSDUI > 0 ? probabilityPercent.toFixed(0) : 50}%</span>
                                     </div>
                                     <div className="text-right mr-3 hidden sm:block">
                                         <span className="text-xs font-medium text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">{multiplier.toFixed(2)}x</span>
                                     </div>
-                                    <div className="absolute left-0 bottom-0 h-1 opacity-20 group-hover:opacity-40 transition-all duration-500 ease-out" style={{ width: `${totalPoolUSD > 0 ? probabilityPercent : 50}%`, backgroundColor: candidate.color }} />
+                                    <div className="absolute left-0 bottom-0 h-1 opacity-20 group-hover:opacity-40 transition-all duration-500 ease-out" style={{ width: `${totalPoolUSDUI > 0 ? probabilityPercent : 50}%`, backgroundColor: candidate.color }} />
                                 </div>
                             );
                         })}
@@ -522,7 +537,7 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
                             </div>
 
                             <div className="space-y-1.5 text-xs text-gray-500 border-t border-gray-200 pt-3">
-                                <div className="flex justify-between"><span>Total Pool</span> <span className="font-medium text-gray-900">${totalPoolUSD.toFixed(0)}</span></div>
+                                <div className="flex justify-between"><span>Total Pool</span> <span className="font-medium text-gray-900">${totalPoolUSDUI.toFixed(0)}</span></div>
                                 <div className="flex justify-between"><span>Est. Payout</span> <span className="font-bold text-emerald-600">${estimatedPayout}</span></div>
                             </div>
 
