@@ -141,13 +141,22 @@ export default function Home() {
       console.log(`Sending ${ethValue} wei (${ethAmount} ETH) for $${amountUSD}`);
 
       // 1. Write to Smart Contract
+      const candidateString = String(selectedCandidate.name);
+      console.log('--- CONTRACT CALL DEBUG ---');
+      console.log('Contract:', CONTRACT_ADDRESS);
+      console.log('Candidate String:', candidateString);
+      console.log('ETH Value (Wei):', ethValue.toString());
+      console.log('Gas Limit:', '300000n');
+      console.log('---------------------------');
+
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: bettingContractABI,
         functionName: 'placeBet',
-        args: [selectedCandidate.name],
+        args: [candidateString],
         account: address,
         value: ethValue,
+        gas: BigInt(300000), // Manual gas limit to prevent simulation failure
         chain: baseSepolia,
       });
 
