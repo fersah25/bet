@@ -8,16 +8,18 @@ contract BitcoinBetting is ReentrancyGuard {
     // Immutable owner address (can only be set once during deployment) saves gas and increases security
     address public immutable owner;
 
+    uint256 public currentRound = 1;
+
     bool public marketResolved;
     string public winningOutcome; // Expected to be either "Yes" or "No"
     uint256 public totalPool;
     uint256 public endTime;
 
-    // Mapping of outcome ("Yes" or "No") to the total ETH bet on that outcome
-    mapping(string => uint256) public outcomeTotals;
+    // Mapping of round => outcome ("Yes" or "No") => total ETH bet
+    mapping(uint256 => mapping(string => uint256)) private _outcomeTotals;
 
-    // Mapping of user address to mapping of outcome string to the ETH amount they bet
-    mapping(address => mapping(string => uint256)) public userBets;
+    // Mapping of round => user address => outcome string => ETH bet
+    mapping(uint256 => mapping(address => mapping(string => uint256))) private _userBets;
 
     // Events for frontend tracking
     event BetPlaced(address indexed user, string outcome, uint256 amount);
@@ -48,12 +50,18 @@ contract BitcoinBetting is ReentrancyGuard {
     }
 
     /**
-     * @dev Sets the duration for the betting period.
+     * @dev Sets the duration for the betting period. Also resets state for a new round if an old one existed.
      * @param durationMinutes The number of minutes the betting will be open.
      */
     function startBetting(uint256 durationMinutes) external onlyOwner {
         require(durationMinutes > 0, "Duration must be > 0");
-        require(endTime == 0 || block.timestamp > endTime, "Betting already active");
+        if (endTime != 0) {
+            require(marketResolved, "Previous market must be resolved before restarting");
+            currentRound++;
+            marketResolved = false;
+            winningOutcome = "";
+            totalPool = 0;
+        }
         endTime = block.timestamp + (durationMinutes * 1 minutes);
     }
 
@@ -68,11 +76,20 @@ contract BitcoinBetting is ReentrancyGuard {
         require(isValidOutcome(prediction), "Invalid prediction. Must be 'Yes' or 'No'");
 
         // Update state
-        outcomeTotals[prediction] += msg.value;
-        userBets[msg.sender][prediction] += msg.value;
+        _outcomeTotals[currentRound][prediction] += msg.value;
+        _userBets[currentRound][msg.sender][prediction] += msg.value;
         totalPool += msg.value;
 
         emit BetPlaced(msg.sender, prediction, msg.value);
+    }
+
+    // Explicit getters to maintain ABI compatibility for frontend
+    function outcomeTotals(string memory outcome) external view returns (uint256) {
+        return _outcomeTotals[currentRound][outcome];
+    }
+
+    function userBets(address user, string memory outcome) external view returns (uint256) {
+        return _userBets[currentRound][user][outcome];
     }
 
     /**
@@ -110,17 +127,17 @@ contract BitcoinBetting is ReentrancyGuard {
     function claim() external nonReentrant {
         require(marketResolved, "Market is not resolved yet");
         
-        uint256 userBet = userBets[msg.sender][winningOutcome];
+        uint256 userBet = _userBets[currentRound][msg.sender][winningOutcome];
         require(userBet > 0, "No winning bets to claim");
 
-        uint256 winningPool = outcomeTotals[winningOutcome];
+        uint256 winningPool = _outcomeTotals[currentRound][winningOutcome];
         require(winningPool > 0, "No bets on winning outcome");
 
         // Calculate reward: proportion of user's bet compared to the total pool mapped to the winning side
         uint256 reward = (userBet * totalPool) / winningPool;
 
         // Perform state updates BEFORE external interactions to prevent reentrancy attacks
-        userBets[msg.sender][winningOutcome] = 0;
+        _userBets[currentRound][msg.sender][winningOutcome] = 0;
 
         // Secure value transfer using call instead of transfer
         (bool success, ) = payable(msg.sender).call{value: reward}("");

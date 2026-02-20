@@ -6,13 +6,16 @@ import { createWalletClient, custom, parseEther, formatEther, createPublicClient
 import { baseSepolia } from 'viem/chains';
 import { bitcoinBettingAbi } from '@/constants/bitcoinBettingAbi';
 
+const ETH_PRICE = 2000; // Hardcoded ETH Price for Demo conversion
+
 export interface BitcoinBettingWidgetProps {
     contractAddress: string;
 }
 
 export default function BitcoinBettingWidget({ contractAddress }: BitcoinBettingWidgetProps) {
-    const [amountETH, setAmountETH] = useState<string>('');
+    const [amount, setAmount] = useState<string>('');
     const [isTrading, setIsTrading] = useState<boolean>(false);
+    const [selectedCandidateId, setSelectedCandidateId] = useState<string>('Yes');
 
     // Contract states
     const [totalPool, setTotalPool] = useState<bigint>(0n);
@@ -195,7 +198,7 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
                 chain: baseSepolia,
             });
 
-            alert(`Betting Started! Tx Hash: ${hash.slice(0, 10)}...`);
+            alert(`Betting Started / Restarted! Tx Hash: ${hash.slice(0, 10)}...`);
             setMarketResolved(false);
             setWinningOutcome('');
             setTimeout(fetchContractData, 5000);
@@ -232,8 +235,8 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
         }
     };
 
-    const handleTrade = async (prediction: 'Yes' | 'No') => {
-        if (!amountETH || isNaN(parseFloat(amountETH))) return;
+    const handleTrade = async () => {
+        if (!amount || isNaN(parseFloat(amount))) return;
         setIsTrading(true);
 
         try {
@@ -252,21 +255,23 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
             });
 
             const [address] = await walletClient.getAddresses();
-            const ethValue = parseEther(amountETH);
+            const amountUSD = parseFloat(amount);
+            const ethAmount = amountUSD / ETH_PRICE;
+            const ethValue = parseEther(ethAmount.toFixed(18));
 
             const hash = await walletClient.writeContract({
                 address: contractAddress as `0x${string}`,
                 abi: bitcoinBettingAbi,
                 functionName: 'placeBet',
-                args: [prediction],
+                args: [selectedCandidateId],
                 account: address,
                 value: ethValue,
                 gas: BigInt(300000),
                 chain: baseSepolia,
             });
 
-            alert(`Bet Placed for ${prediction}! Tx Hash: ${hash.slice(0, 10)}...`);
-            setAmountETH('');
+            alert(`Bet Placed for ${selectedCandidateId}! Tx Hash: ${hash.slice(0, 10)}...`);
+            setAmount('');
             setTimeout(fetchContractData, 5000);
         } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Trade failed:', err);
@@ -305,155 +310,230 @@ export default function BitcoinBettingWidget({ contractAddress }: BitcoinBetting
         }
     };
 
-    const totalPoolETH = parseFloat(formatEther(totalPool)).toFixed(4);
-    const yesPoolETH = parseFloat(formatEther(outcomeTotals.yes)).toFixed(4);
-    const noPoolETH = parseFloat(formatEther(outcomeTotals.no)).toFixed(4);
+    // Calculate USD Pools
+    const totalPoolETH = parseFloat(formatEther(totalPool));
+    const yesPoolETH = parseFloat(formatEther(outcomeTotals.yes));
+    const noPoolETH = parseFloat(formatEther(outcomeTotals.no));
 
-    const userYesETH = parseFloat(formatEther(userBets.yes)).toFixed(4);
-    const userNoETH = parseFloat(formatEther(userBets.no)).toFixed(4);
+    const totalPoolUSD = Math.round(totalPoolETH * ETH_PRICE);
+    const yesPoolUSD = Math.round(yesPoolETH * ETH_PRICE);
+    const noPoolUSD = Math.round(noPoolETH * ETH_PRICE);
+
+    const candidates = [
+        { id: 'Yes', name: 'Yes', color: '#00d395', pool: yesPoolUSD },
+        { id: 'No', name: 'No', color: '#ff4d4d', pool: noPoolUSD }
+    ];
+
+    const getCandidateStats = (pool: number) => {
+        if (totalPoolUSD === 0) {
+            return { probabilityPercent: 50, multiplier: 2 };
+        }
+        const probability = pool / totalPoolUSD;
+        const probabilityPercent = probability * 100;
+        const multiplier = pool > 0 ? totalPoolUSD / pool : 0;
+        return { probabilityPercent, multiplier };
+    };
+
+    const selectedCandidate = candidates.find(c => c.id === selectedCandidateId) || candidates[0];
+    const selectedStats = getCandidateStats(selectedCandidate.pool);
+
+    const amountNum = parseFloat(amount) || 0;
+    const projectedTotalUSD = totalPoolUSD + amountNum;
+    const projectedPoolUSD = selectedCandidate.pool + amountNum;
+    const projectedMultiplier = projectedPoolUSD > 0 ? projectedTotalUSD / projectedPoolUSD : 0;
+    const estimatedPayout = (amountNum * projectedMultiplier).toFixed(2);
 
     const hasWinningBet = marketResolved && winningOutcome !== '' && (
         (winningOutcome === 'Yes' && userBets.yes > 0n) ||
         (winningOutcome === 'No' && userBets.no > 0n)
     );
 
+    const renderTradeButton = () => {
+        if (!authenticated) {
+            return (
+                <button
+                    onClick={() => login()}
+                    className="w-full py-3 bg-gray-900 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all hover:bg-gray-800"
+                >
+                    Log In to Trade
+                </button>
+            )
+        }
+
+        const walletChainIdStr = wallet?.chainId;
+        const walletChainId = walletChainIdStr ? Number(walletChainIdStr.includes(':') ? walletChainIdStr.split(':')[1] : walletChainIdStr) : null;
+
+        if (wallet && walletChainId !== baseSepolia.id) {
+            return (
+                <button
+                    onClick={async () => {
+                        try {
+                            await wallet.switchChain(baseSepolia.id);
+                        } catch (e) {
+                            console.error("Switch chain failed", e);
+                            alert("Failed to switch network.");
+                        }
+                    }}
+                    className="w-full py-3 bg-yellow-500 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all hover:bg-yellow-600"
+                >
+                    Switch to Base Sepolia
+                </button>
+            )
+        }
+
+        return (
+            <button
+                onClick={handleTrade}
+                className={`w-full py-3 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading && isBettingActive ? (selectedCandidateId === 'Yes' ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-[#ff4d4d] hover:bg-[#e60000] shadow-red-500/20') : 'bg-gray-300 cursor-not-allowed shadow-none'}`}
+                disabled={!amount || isTrading || !isBettingActive}
+            >
+                {!isBettingActive ? 'Betting Closed' : isTrading ? 'Processing...' : 'Place Order'}
+            </button>
+        )
+    };
+
     return (
-        <div className="bg-[#131722] text-white rounded-2xl p-6 shadow-xl border border-gray-800 flex-1 font-sans">
-            {/* Header & Stats */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                    <span className="bg-gray-800 text-gray-300 text-[10px] items-center font-bold px-2 py-1 rounded uppercase tracking-wide border border-gray-700">Crypto</span>
-                    <span className="text-gray-400 text-sm font-medium">Vol {totalPoolETH} ETH</span>
+        <div className="flex flex-col gap-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex-1 font-sans">
+                {/* Header & Stats */}
+                <div className="flex items-center space-x-4 mb-3">
+                    <div className="flex items-center space-x-2">
+                        <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">Crypto</span>
+                        <span className="text-gray-400 text-xs font-semibold">• Vol ${totalPoolUSD.toFixed(0)}</span>
+                    </div>
+                    {timeLeft && (
+                        <div className={`px-2 py-0.5 rounded-full text-xs font-bold border ${isBettingActive ? 'bg-blue-50 text-blue-600 border-blue-200 animate-pulse' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                            ⏳ {timeLeft}
+                        </div>
+                    )}
                 </div>
-                {timeLeft && (
-                    <div className={`px-3 py-1 rounded-full text-xs font-bold border ${isBettingActive ? 'bg-blue-900/30 text-blue-400 border-blue-800 animate-pulse' : 'bg-orange-900/30 text-orange-400 border-orange-800'}`}>
-                        ⏳ {timeLeft}
+
+                <h2 className="text-2xl font-bold text-gray-900 leading-tight mb-2">
+                    Will Bitcoin reach $75k in 24 hours?
+                </h2>
+                <p className="text-sm text-gray-500 mb-6">
+                    Predict if BTC will hit the target price. Powered by a secure, audited smart contract.
+                </p>
+
+                {/* Admin Panel */}
+                {authenticated && wallet && wallet.address.toLowerCase() === contractOwner && (
+                    <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-wrap items-center gap-4">
+                        <span className="text-orange-800 font-bold text-sm">Admin:</span>
+                        {(!isBettingActive || marketResolved) && (
+                            <>
+                                <input
+                                    type="number"
+                                    value={durationInput}
+                                    onChange={e => setDurationInput(e.target.value)}
+                                    className="border border-orange-300 p-1.5 rounded w-20 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    placeholder="Mins"
+                                />
+                                <button
+                                    onClick={handleStartBetting}
+                                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all"
+                                >
+                                    {marketResolved ? 'Restart Bet' : 'Start Betting'}
+                                </button>
+                            </>
+                        )}
+                        {isBettingActive && (
+                            <span className="text-gray-500 text-sm">Betting is live. Cannot resolve yet.</span>
+                        )}
+                        {!isBettingActive && endTime !== null && endTime > 0 && !marketResolved && (
+                            <div className="flex gap-2">
+                                <button onClick={() => handleResolveMarket('Yes')} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-bold">Resolve YES</button>
+                                <button onClick={() => handleResolveMarket('No')} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-bold">Resolve NO</button>
+                            </div>
+                        )}
                     </div>
                 )}
-            </div>
 
-            <h2 className="text-2xl font-bold text-white leading-tight mb-2">
-                Will Bitcoin reach $75k in 24 hours?
-            </h2>
-            <p className="text-sm text-gray-400 mb-6">
-                Predict if BTC will hit the target price. Powered by a secure, audited smart contract.
-            </p>
-
-            {/* Admin Panel */}
-            {authenticated && wallet && wallet.address.toLowerCase() === contractOwner && (
-                <div className="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-xl flex flex-wrap items-center gap-4">
-                    <span className="text-orange-400 font-bold text-sm">Admin:</span>
-                    {!isBettingActive && endTime === 0 && (
-                        <>
-                            <input
-                                type="number"
-                                value={durationInput}
-                                onChange={e => setDurationInput(e.target.value)}
-                                className="bg-gray-900 border border-gray-600 text-white p-1.5 rounded w-20 text-sm focus:outline-none focus:border-blue-500"
-                                placeholder="Mins"
-                            />
-                            <button
-                                onClick={handleStartBetting}
-                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all"
-                            >
-                                Start Betting
-                            </button>
-                        </>
-                    )}
-                    {isBettingActive && (
-                        <span className="text-gray-400 text-sm">Betting is live. Cannot resolve yet.</span>
-                    )}
-                    {!isBettingActive && endTime !== null && endTime > 0 && !marketResolved && (
-                        <div className="flex gap-2">
-                            <button onClick={() => handleResolveMarket('Yes')} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-bold">Resolve YES</button>
-                            <button onClick={() => handleResolveMarket('No')} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-bold">Resolve NO</button>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Claim Winnings Banner */}
-            {hasWinningBet && (
-                <div className="bg-gradient-to-r from-emerald-600 to-emerald-800 rounded-xl shadow p-5 mb-6 text-white text-center border border-emerald-500">
-                    <h3 className="text-xl font-bold mb-2">🎉 You Won!</h3>
-                    <p className="text-sm opacity-90 mb-4">You correctly predicted {winningOutcome}.</p>
-                    <button
-                        onClick={handleClaim}
-                        disabled={isClaiming}
-                        className="w-full py-3 bg-white text-emerald-700 font-bold text-sm rounded shadow hover:bg-emerald-50 transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
-                    >
-                        {isClaiming ? 'Claiming...' : 'Claim Rewards'}
-                    </button>
-                </div>
-            )}
-
-            {marketResolved && !hasWinningBet && (
-                <div className="bg-gray-800 rounded-xl shadow p-5 mb-6 text-gray-300 text-center border border-gray-700">
-                    <h3 className="text-lg font-bold">Market Resolved</h3>
-                    <p className="text-sm">The outcome was {winningOutcome}.</p>
-                </div>
-            )}
-
-            {/* Betting Interface */}
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-5">
-
-                {/* User Input */}
-                <div className="mb-5 space-y-2">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Entry Amount (ETH)</label>
-                    <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">Ξ</span>
-                        <input
-                            type="text"
-                            value={amountETH}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || /^\d*\.?\d*$/.test(val)) setAmountETH(val);
-                            }}
-                            placeholder="0.01"
-                            disabled={!isBettingActive || isTrading}
-                            className="w-full pl-9 pr-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all"
-                        />
-                    </div>
-                </div>
-
-                {/* Yes/No Buttons */}
-                <div className="grid grid-cols-2 gap-4">
-                    {/* YES Section */}
-                    <div className="flex flex-col space-y-2">
+                {/* Claim Winnings Banner */}
+                {hasWinningBet && (
+                    <div className="bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-xl shadow p-4 mb-6 text-white text-center">
+                        <h3 className="text-lg font-bold mb-1">🎉 You Won!</h3>
+                        <p className="text-xs opacity-90 mb-3">You correctly predicted {winningOutcome}.</p>
                         <button
-                            onClick={() => authenticated ? handleTrade('Yes') : login()}
-                            disabled={isTrading || (!isBettingActive && authenticated) || (authenticated && !amountETH)}
-                            className="w-full py-4 bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 font-bold text-lg rounded-xl transition-all hover:bg-emerald-500 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                            onClick={handleClaim}
+                            disabled={isClaiming}
+                            className="w-full py-2 bg-white text-emerald-600 font-bold text-sm rounded shadow hover:bg-emerald-50 transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
                         >
-                            {isTrading ? '...' : authenticated ? 'YES' : 'Log In'}
+                            {isClaiming ? 'Claiming...' : 'Claim Your Winnings'}
                         </button>
-                        <div className="text-center text-xs text-gray-400">
-                            Pool: {yesPoolETH} ETH
-                        </div>
-                        {parseFloat(userYesETH) > 0 && (
-                            <div className="text-center text-xs text-emerald-400 font-semibold">
-                                Your Bet: {userYesETH} ETH
-                            </div>
-                        )}
+                    </div>
+                )}
+
+                {marketResolved && !hasWinningBet && (
+                    <div className="bg-gray-100 rounded-xl shadow-sm p-5 mb-6 text-gray-600 text-center border border-gray-200">
+                        <h3 className="text-lg font-bold">Market Resolved</h3>
+                        <p className="text-sm">The outcome was {winningOutcome}.</p>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left: Candidates */}
+                    <div className="space-y-3">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 pb-2">Options</h3>
+                        {candidates.map((candidate) => {
+                            const { probabilityPercent, multiplier } = getCandidateStats(candidate.pool);
+                            return (
+                                <div
+                                    key={candidate.id}
+                                    className={`group relative overflow-hidden flex items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.id ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
+                                    onClick={() => setSelectedCandidateId(candidate.id)}
+                                >
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 text-white" style={{ backgroundColor: candidate.color }}>
+                                        {candidate.name.charAt(0)}
+                                    </div>
+                                    <div className="ml-3 flex-1">
+                                        <h4 className="font-bold text-gray-900 text-sm">{candidate.name}</h4>
+                                    </div>
+                                    <div className="text-right mx-2 min-w-[50px]">
+                                        <span className="block font-bold text-gray-900 text-base">{totalPoolUSD > 0 ? probabilityPercent.toFixed(0) : 50}%</span>
+                                    </div>
+                                    <div className="text-right mr-3 hidden sm:block">
+                                        <span className="text-xs font-medium text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">{multiplier.toFixed(2)}x</span>
+                                    </div>
+                                    <div className="absolute left-0 bottom-0 h-1 opacity-20 group-hover:opacity-40 transition-all duration-500 ease-out" style={{ width: `${totalPoolUSD > 0 ? probabilityPercent : 50}%`, backgroundColor: candidate.color }} />
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    {/* NO Section */}
-                    <div className="flex flex-col space-y-2">
-                        <button
-                            onClick={() => authenticated ? handleTrade('No') : login()}
-                            disabled={isTrading || (!isBettingActive && authenticated) || (authenticated && !amountETH)}
-                            className="w-full py-4 bg-red-500/10 border border-red-500/50 text-red-400 font-bold text-lg rounded-xl transition-all hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-                        >
-                            {isTrading ? '...' : authenticated ? 'NO' : 'Log In'}
-                        </button>
-                        <div className="text-center text-xs text-gray-400">
-                            Pool: {noPoolETH} ETH
-                        </div>
-                        {parseFloat(userNoETH) > 0 && (
-                            <div className="text-center text-xs text-red-400 font-semibold">
-                                Your Bet: {userNoETH} ETH
+                    {/* Right: Order Ticket */}
+                    <div className="bg-gray-50/50 rounded-xl border border-gray-100 p-4">
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+                                <span className="text-xs font-bold text-gray-500 uppercase">Buy Order</span>
+                                <span className="ml-auto font-bold text-gray-900 text-sm">{selectedCandidate.name}</span>
                             </div>
-                        )}
+
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-500 font-medium">Current Odds</span>
+                                <span className="font-bold text-gray-900">{selectedStats.multiplier.toFixed(2)}x</span>
+                            </div>
+
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                                <input
+                                    type="text"
+                                    value={amount}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || /^\d*\.?\d*$/.test(val)) setAmount(val);
+                                    }}
+                                    placeholder="0"
+                                    className="w-full pl-7 pr-3 py-2.5 bg-white border border-gray-200 rounded-lg text-base font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00d395]"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5 text-xs text-gray-500 border-t border-gray-200 pt-3">
+                                <div className="flex justify-between"><span>Total Pool</span> <span className="font-medium text-gray-900">${totalPoolUSD.toFixed(0)}</span></div>
+                                <div className="flex justify-between"><span>Est. Payout</span> <span className="font-bold text-emerald-600">${estimatedPayout}</span></div>
+                            </div>
+
+                            {renderTradeButton()}
+                        </div>
                     </div>
                 </div>
             </div>

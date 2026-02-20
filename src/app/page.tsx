@@ -99,24 +99,9 @@ export default function Home() {
             />
           </div>
 
-          {/* Right Column: Bitcoin Market + TradingView */}
+          {/* Right Column: Bitcoin Market */}
           <div className="flex flex-col h-full space-y-6">
-
-            {/* TradingView Widget */}
-            <div className="w-full h-[300px] md:h-[400px] bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <iframe
-                title="TradingView: BTCUSDT"
-                src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_btc&symbol=BINANCE%3ABTCUSDT&interval=D&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=%5B%5D&theme=light&style=1&timezone=Etc%2FUTC"
-                style={{ width: '100%', height: '100%' }}
-                frameBorder="0"
-                allowTransparency={true}
-                scrolling="no"
-                allowFullScreen={true}
-              ></iframe>
-            </div>
-
             <BitcoinBettingWidget contractAddress={CONTRACT_ADDRESS_BTC} />
-
           </div>
         </div>
       </div>
