@@ -4,14 +4,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Navbar from '@/components/Navbar';
 import BettingWidget, { Candidate } from '@/components/BettingWidget';
+import BitcoinBettingWidget from '@/components/BitcoinBettingWidget';
 
 const CONTRACT_ADDRESS_FED = '0xd10Ab59c208914BEd5209f5904859D954e9903ea';
-const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0xd10Ab59c208914BEd5209f5904859D954e9903eb'; // fallback if env is missing
-
-const BTC_CANDIDATES: Candidate[] = [
-  { id: 'yes', name: 'Yes', initials: 'Y', color: '#00d395', pool: 0 },
-  { id: 'no', name: 'No', initials: 'N', color: '#ff4d4d', pool: 0 }
-];
+const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x768bB22c4158fe6f2f96F43D68bD83E0A84AD151'; // fallback if env is missing
 
 export default function Home() {
   const [fedCandidates, setFedCandidates] = useState<Candidate[]>([]);
@@ -119,14 +115,7 @@ export default function Home() {
               ></iframe>
             </div>
 
-            <BettingWidget
-              title="Will Bitcoin reach $75k in 24 hours?"
-              description="Will BTC hit the target price within 24 hours? Place your bets on Yes or No. The winning side takes the entire pool!"
-              category="Crypto"
-              contractAddress={CONTRACT_ADDRESS_BTC}
-              initialCandidates={BTC_CANDIDATES}
-              allowAdminPanel={true}
-            />
+            <BitcoinBettingWidget contractAddress={CONTRACT_ADDRESS_BTC} />
 
           </div>
         </div>
