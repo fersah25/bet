@@ -24,6 +24,7 @@ interface BettingWidgetProps {
     contractAddress: string;
     initialCandidates: Candidate[];
     onTradeAction?: (candidateId: string, tradeAmount: number) => Promise<void>;
+    onRestartAction?: () => Promise<void>;
     allowAdminPanel?: boolean;
 }
 
@@ -34,6 +35,7 @@ export default function BettingWidget({
     contractAddress,
     initialCandidates,
     onTradeAction,
+    onRestartAction,
     allowAdminPanel = true,
 }: BettingWidgetProps) {
     const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates);
@@ -413,6 +415,18 @@ export default function BettingWidget({
                         >
                             Start Betting
                         </button>
+                        {onRestartAction && (
+                            <button
+                                onClick={async () => {
+                                    await onRestartAction();
+                                    alert(`${category === 'Economics' ? 'Fed' : category} Market Data Reset!`);
+                                    // Optionally refresh candidates if you want, but simple data update is fine
+                                }}
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all ml-auto"
+                            >
+                                Reset {category === 'Economics' ? 'Fed' : category} Market
+                            </button>
+                        )}
                     </div>
                 )}
 

@@ -447,7 +447,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                                     onClick={handleStartBetting}
                                     className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all"
                                 >
-                                    {marketResolved ? 'Restart Bet' : 'Start Betting'}
+                                    Reset Bitcoin Market
                                 </button>
                             </>
                         )}

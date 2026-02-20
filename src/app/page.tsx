@@ -93,14 +93,23 @@ export default function Home() {
 
   const handleBtcRestartAction = async () => {
     try {
-      for (const candidate of btcCandidates) {
+      const { error } = await supabase.rpc('reset_bitcoin_market');
+      if (error) console.error('Supabase btc restart update failed:', error);
+    } catch (err) {
+      console.error('Supabase restart update failed:', err);
+    }
+  };
+
+  const handleFedRestartAction = async () => {
+    try {
+      for (const candidate of fedCandidates) {
         await supabase
           .from('markets')
           .update({ pool_amount: 0 })
           .eq('id', candidate.id);
       }
     } catch (err) {
-      console.error('Supabase restart update failed:', err);
+      console.error('Supabase fed restart update failed:', err);
     }
   };
 
@@ -131,6 +140,7 @@ export default function Home() {
               contractAddress={CONTRACT_ADDRESS_FED}
               initialCandidates={fedCandidates}
               onTradeAction={handleFedTradeAction}
+              onRestartAction={handleFedRestartAction}
               allowAdminPanel={true}
             />
           </div>
