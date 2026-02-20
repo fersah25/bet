@@ -8,7 +8,7 @@ import { baseSepolia } from 'viem/chains';
 import Navbar from '@/components/Navbar';
 import { bettingContractABI } from '@/constants/abi';
 
-const CONTRACT_ADDRESS = '0xE5ECa139A20BDCC71Fd31c1bB7ffa10a9013D35f';
+const CONTRACT_ADDRESS = '0xd10Ab59c208914BEd5209f5904859D954e9903ea';
 const ETH_PRICE = 2000; // Hardcoded ETH Price for Demo conversion
 
 
