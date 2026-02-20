@@ -141,7 +141,16 @@ export default function Home() {
       console.log(`Sending ${ethValue} wei (${ethAmount} ETH) for $${amountUSD}`);
 
       // 1. Write to Smart Contract
-      const candidateString = String(selectedCandidate.name);
+      // Map frontend name to exact smart contract string expected
+      const mapCandidateName = (name: string): string => {
+        if (name.includes('Warsh')) return 'Warsh';
+        if (name.includes('Shelton')) return 'Shelton';
+        if (name.includes('Laffer')) return 'Laffer';
+        if (name.includes('Pulte')) return 'Pulte';
+        return name; // fallback
+      };
+
+      const candidateString = mapCandidateName(String(selectedCandidate.name));
       console.log('--- CONTRACT CALL DEBUG ---');
       console.log('Contract:', CONTRACT_ADDRESS);
       console.log('Candidate String:', candidateString);
