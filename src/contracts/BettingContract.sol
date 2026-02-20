@@ -6,6 +6,7 @@ contract BettingContract {
     bool public marketResolved;
     string public winningCandidate;
     uint256 public totalPool;
+    uint256 public endTime;
 
     // candidate string => total ETH mapped
     mapping(string => uint256) public candidateTotals;
@@ -21,6 +22,12 @@ contract BettingContract {
         owner = msg.sender;
     }
 
+    function startBetting(uint256 durationMinutes) external onlyOwner {
+        require(durationMinutes > 0, "Duration must be > 0");
+        require(endTime == 0 || block.timestamp > endTime, "Betting already active");
+        endTime = block.timestamp + (durationMinutes * 1 minutes);
+    }
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
         _;
@@ -33,6 +40,8 @@ contract BettingContract {
 
     function placeBet(string memory candidateName) external payable marketActive {
         require(msg.value > 0, "Bet amount must be greater than 0");
+        require(endTime > 0, "Betting has not started yet");
+        require(block.timestamp < endTime, "Betting is closed");
         
         require(
             isValidCandidate(candidateName),
