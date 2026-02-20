@@ -164,8 +164,18 @@ export default function Home() {
 
   const getCandidateStats = (c: Candidate | undefined) => {
     if (!c) return { probability: 0, probabilityPercent: 0, multiplier: 0 };
+
+    // Default Handling for Empty Pool
+    if (totalPool === 0) {
+      return {
+        probability: 0.25,
+        probabilityPercent: 25,
+        multiplier: candidates.length > 0 ? candidates.length : 4
+      };
+    }
+
     const pool = c.pool || 0;
-    const probability = totalPool > 0 ? pool / totalPool : 0;
+    const probability = pool / totalPool;
     const probabilityPercent = probability * 100;
     const multiplier = pool > 0 ? totalPool / pool : 0;
 
