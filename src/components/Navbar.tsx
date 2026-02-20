@@ -43,6 +43,7 @@ export default function Navbar() {
                             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00d395] to-blue-500 p-[1px]">
                                 <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden">
                                     {userProfile?.avatar_url ? (
+                                        /* eslint-disable-next-line @next/next/no-img-element */
                                         <img src={userProfile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
                                     ) : (
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-400">
