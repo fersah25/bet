@@ -6,10 +6,11 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { createWalletClient, custom, parseEther } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import Navbar from '@/components/Navbar';
-import BettingABI from '@/contracts/abi.json';
+import { bettingContractABI } from '@/constants/abi';
 
-const CONTRACT_ADDRESS = '0x1037505374431e793910c282531065e905325350'; // Placeholder - Replace with deployed contract
-const ETH_PRICE = 3000; // Hardcoded ETH Price for Demo conversion
+const CONTRACT_ADDRESS = '0x86428644eF79dd83f72dF3Ec3bE0bD4d0f58b428';
+const ETH_PRICE = 2000; // Hardcoded ETH Price for Demo conversion
+
 
 
 
@@ -31,7 +32,7 @@ export default function Home() {
   const [isTrading, setIsTrading] = useState<boolean>(false);
 
   // Wallet Hooks
-  const { login, authenticated, user } = usePrivy();
+  const { login, authenticated } = usePrivy();
   const { wallets } = useWallets();
   const wallet = wallets[0]; // Primary wallet
 
@@ -142,7 +143,7 @@ export default function Home() {
       // 1. Write to Smart Contract
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: BettingABI,
+        abi: bettingContractABI,
         functionName: 'placeBet',
         args: [selectedCandidate.name],
         account: address,
