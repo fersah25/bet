@@ -137,7 +137,7 @@ export default function Home() {
           name: item?.candidate_name || item?.name || 'Unknown Candidate',
           initials: item?.initials || '??',
           color: item?.color || '#cccccc',
-          pool: Number(item?.pool_amount) || 10, // Ensure number
+          pool: Number(item?.pool_amount) || 0, // Ensure number exactly 0 if empty
           image_url: item?.image_url || '',
         }));
 
@@ -170,7 +170,7 @@ export default function Home() {
       return {
         probability: 0.25,
         probabilityPercent: 25,
-        multiplier: candidates.length > 0 ? candidates.length : 4
+        multiplier: 4
       };
     }
 
@@ -475,7 +475,7 @@ export default function Home() {
 
                       {/* 3. Percentage */}
                       <div className="text-right mx-4 min-w-[60px]">
-                        <span className="block font-bold text-gray-900 text-lg">{probabilityPercent.toFixed(0)}%</span>
+                        <span className="block font-bold text-gray-900 text-lg">{totalPool > 0 ? probabilityPercent.toFixed(0) : 25}%</span>
                       </div>
 
                       {/* 4. Multiplier */}
@@ -498,7 +498,7 @@ export default function Home() {
                       {/* Visual Progress Bar Overlay */}
                       <div
                         className="absolute left-0 bottom-0 h-1 bg-[#00d395] rounded-bl-xl transition-all duration-500 ease-out opacity-20 group-hover:opacity-40"
-                        style={{ width: `${probabilityPercent}%`, backgroundColor: candidate?.color || '#00d395' }}
+                        style={{ width: `${totalPool > 0 ? probabilityPercent : 25}%`, backgroundColor: candidate?.color || '#00d395' }}
                       />
                     </div>
                   );
