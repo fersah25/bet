@@ -92,17 +92,4 @@ contract BettingContract {
 
         emit RewardClaimed(msg.sender, reward);
     }
-
-    function resetMarket() external onlyOwner {
-        marketResolved = false;
-        winningCandidate = "";
-        totalPool = 0;
-        endTime = 0;
-        
-        // Reset candidate totals
-        candidateTotals["Warsh"] = 0;
-        candidateTotals["Shelton"] = 0;
-        candidateTotals["Laffer"] = 0;
-        candidateTotals["Pulte"] = 0;
-    }
 }

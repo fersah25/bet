@@ -214,12 +214,5 @@ export const bettingContractABI = [
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "resetMarket",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
     }
 ] as const;

@@ -238,13 +238,13 @@ export default function Home() {
     }
   };
 
-  // Derived Calculations - Safe checks
+  // Derived Calculations - Safe checks strictly using Supabase data for accurate visual resets
   const totalPool = candidates?.reduce((sum, c) => sum + (c?.pool || 0), 0) || 0;
 
   const getCandidateStats = (c: Candidate | undefined) => {
     if (!c) return { probability: 0, probabilityPercent: 0, multiplier: 0 };
 
-    // Default Handling for Empty Pool
+    // Default Handling for Empty Pool (manually set to 0 in Supabase)
     if (totalPool === 0) {
       return {
         probability: 0.25,
@@ -300,36 +300,6 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       alert('Failed to start betting: ' + (err.shortMessage || err.message));
-    }
-  };
-
-  const handleResetMarket = async () => {
-    if (!wallet) return;
-    try {
-      const provider = await wallet.getEthereumProvider();
-      const walletClient = createWalletClient({
-        chain: baseSepolia,
-        transport: custom(provider),
-      });
-      const [address] = await walletClient.getAddresses();
-
-      const hash = await walletClient.writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: bettingContractABI,
-        functionName: 'resetMarket',
-        account: address,
-        chain: baseSepolia,
-      });
-
-      alert(`Market Reset! Tx Hash: ${hash.slice(0, 10)}...`);
-      setMarketResolved(false);
-      setWinningCandidate('');
-      setHasWinningBet(false);
-      setTimeout(fetchContractData, 5000);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      console.error(err);
-      alert('Failed to reset market: ' + (err.shortMessage || err.message));
     }
   };
 
@@ -536,12 +506,6 @@ export default function Home() {
                   >
                     Start Betting
                   </button>
-                  <button
-                    onClick={handleResetMarket}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded shadow transition-all ml-auto"
-                  >
-                    Reset Market
-                  </button>
                 </div>
               )}
             </div>
@@ -634,7 +598,7 @@ export default function Home() {
             <div className="sticky top-24">
 
               {/* Claim Winnings Banner */}
-              {marketResolved && hasWinningBet && (
+              {marketResolved && hasWinningBet && winningCandidate && winningCandidate !== '' && (
                 <div className="bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-xl shadow-lg p-5 mb-6 text-white text-center transform transition-all hover:scale-[1.02]">
                   <h3 className="text-xl font-bold mb-2">🎉 You Won!</h3>
                   <p className="text-sm opacity-90 mb-4">You successfully predicted {winningCandidate}.</p>
