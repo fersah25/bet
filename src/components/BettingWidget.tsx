@@ -365,6 +365,33 @@ export default function BettingWidget({
         }
     };
 
+    const handleResolveMarket = async (outcome: string) => {
+        if (!wallet) return;
+        try {
+            const provider = await wallet.getEthereumProvider();
+            const walletClient = createWalletClient({
+                chain: baseSepolia,
+                transport: custom(provider),
+            });
+            const [address] = await walletClient.getAddresses();
+
+            const hash = await walletClient.writeContract({
+                address: contractAddress as `0x${string}`,
+                abi: bettingContractABI,
+                functionName: 'resolveMarket',
+                args: [outcome],
+                account: address,
+                chain: baseSepolia,
+            });
+
+            alert(`Market Resolved to ${outcome}! Tx Hash: ${hash.slice(0, 10)}...`);
+            setTimeout(fetchContractData, 5000);
+        } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+            console.error(err);
+            alert('Failed to resolve market: ' + (err.shortMessage || err.message));
+        }
+    };
+
     const renderTradeButton = () => {
         if (!authenticated) {
             return (
@@ -460,6 +487,17 @@ export default function BettingWidget({
                             >
                                 Reset {category === 'Economics' ? 'Fed' : category} Market
                             </button>
+                        )}
+                        {isBettingActive && (
+                            <span className="text-gray-500 text-sm">Betting is live. Cannot resolve yet.</span>
+                        )}
+                        {!isBettingActive && endTime !== null && endTime > 0 && !marketResolved && (
+                            <div className="flex gap-2 w-full mt-2 flex-wrap">
+                                <button onClick={() => handleResolveMarket('Warsh')} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-bold">Res: Warsh</button>
+                                <button onClick={() => handleResolveMarket('Shelton')} className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm font-bold">Res: Shelton</button>
+                                <button onClick={() => handleResolveMarket('Laffer')} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-bold">Res: Laffer</button>
+                                <button onClick={() => handleResolveMarket('Pulte')} className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm font-bold">Res: Pulte</button>
+                            </div>
                         )}
                     </div>
                 )}
