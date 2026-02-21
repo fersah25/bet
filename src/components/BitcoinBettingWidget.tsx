@@ -511,7 +511,11 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                                     className={`group relative overflow-hidden flex items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.name ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
                                     onClick={() => setSelectedCandidateId(candidate.name)}
                                 >
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 text-white" style={{ backgroundColor: candidate.color }}>
+                                    {candidate?.image_url ? (
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <img src={candidate.image_url} alt={candidate.name} className="w-8 h-8 rounded-full object-cover shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} />
+                                    ) : null}
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 text-white ${candidate?.image_url ? 'hidden' : ''}`} style={{ backgroundColor: candidate.color }}>
                                         {candidate.initials || candidate.name.charAt(0)}
                                     </div>
                                     <div className="ml-3 flex-1">
