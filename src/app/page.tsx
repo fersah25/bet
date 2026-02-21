@@ -8,10 +8,12 @@ import BitcoinBettingWidget from '@/components/BitcoinBettingWidget';
 
 const CONTRACT_ADDRESS_FED = '0xd10Ab59c208914BEd5209f5904859D954e9903ea';
 const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x403B63B2cF2Cf64A029aB903e4099d713fA6924B'; // fallback if env is missing
+const CONTRACT_ADDRESS_BASE_TWEET = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BASE_TWEET || '0x79c68cFf7D9C1274EFc677901239f81e1aba8D3d';
 
 export default function Home() {
   const [fedCandidates, setFedCandidates] = useState<Candidate[]>([]);
   const [btcCandidates, setBtcCandidates] = useState<Candidate[]>([]);
+  const [baseTweetCandidates, setBaseTweetCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -44,14 +46,17 @@ export default function Home() {
 
         setFedCandidates(mappedCandidates.filter(c => c.category === 'fed'));
         setBtcCandidates(mappedCandidates.filter(c => c.category === 'bitcoin'));
+        setBaseTweetCandidates(mappedCandidates.filter(c => c.category === 'base_tweet'));
       } else {
         setFedCandidates([]);
         setBtcCandidates([]);
+        setBaseTweetCandidates([]);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
       setFedCandidates([]);
       setBtcCandidates([]);
+      setBaseTweetCandidates([]);
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +105,32 @@ export default function Home() {
     }
   };
 
+  const handleBaseTweetTradeAction = async (candidateName: string, tradeAmount: number) => {
+    const candidate = baseTweetCandidates.find((c) => c.name === candidateName);
+    if (!candidate) return;
+    const newPoolAmount = (candidate.pool || 0) + tradeAmount;
+
+    try {
+      const { error } = await supabase
+        .from('markets')
+        .update({ pool_amount: newPoolAmount })
+        .eq('id', candidate.id);
+
+      if (error) console.error('Supabase update error:', error);
+    } catch (err) {
+      console.error('Supabase update failed:', err);
+    }
+  };
+
+  const handleBaseTweetRestartAction = async () => {
+    try {
+      const { error } = await supabase.rpc('reset_base_tweet_market');
+      if (error) console.error('Supabase base_tweet restart update failed:', error);
+    } catch (err) {
+      console.error('Supabase restart update failed:', err);
+    }
+  };
+
   const handleFedRestartAction = async () => {
     try {
       for (const candidate of fedCandidates) {
@@ -128,8 +159,8 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 text-gray-900 font-sans pb-12">
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 items-start">
 
           {/* Left Column: Fed Market */}
           <div className="flex flex-col h-full space-y-6">
@@ -145,13 +176,31 @@ export default function Home() {
             />
           </div>
 
-          {/* Right Column: Bitcoin Market */}
+          {/* Middle Column: Bitcoin Market */}
           <div className="flex flex-col h-full space-y-6">
             <BitcoinBettingWidget
               contractAddress={CONTRACT_ADDRESS_BTC}
               initialCandidates={btcCandidates}
               onTradeAction={handleBtcTradeAction}
               onRestartAction={handleBtcRestartAction}
+              marketName="Bitcoin"
+              title="Will Bitcoin reach $75k in 24 hours?"
+              description="Predict if BTC will hit the target price. Powered by a secure, audited smart contract."
+              categoryLabel="Crypto"
+            />
+          </div>
+
+          {/* Right Column: Base Tweet Market */}
+          <div className="flex flex-col h-full space-y-6">
+            <BitcoinBettingWidget
+              contractAddress={CONTRACT_ADDRESS_BASE_TWEET}
+              initialCandidates={baseTweetCandidates}
+              onTradeAction={handleBaseTweetTradeAction}
+              onRestartAction={handleBaseTweetRestartAction}
+              marketName="Base Tweet"
+              title="@base Today's Tweet Count"
+              description="Will @base post 10 or more tweets today? Powered by a secure, audited smart contract."
+              categoryLabel="Social"
             />
           </div>
         </div>

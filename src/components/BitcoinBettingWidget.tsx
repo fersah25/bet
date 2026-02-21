@@ -14,9 +14,22 @@ export interface BitcoinBettingWidgetProps {
     initialCandidates?: Candidate[];
     onTradeAction?: (candidateName: string, amountUSD: number) => Promise<void>;
     onRestartAction?: () => Promise<void>;
+    marketName?: string;
+    title?: string;
+    description?: string;
+    categoryLabel?: string;
 }
 
-export default function BitcoinBettingWidget({ contractAddress, initialCandidates = [], onTradeAction, onRestartAction }: BitcoinBettingWidgetProps) {
+export default function BitcoinBettingWidget({
+    contractAddress,
+    initialCandidates = [],
+    onTradeAction,
+    onRestartAction,
+    marketName = 'Bitcoin',
+    title = 'Will Bitcoin reach $75k in 24 hours?',
+    description = 'Predict if BTC will hit the target price. Powered by a secure, audited smart contract.',
+    categoryLabel = 'Crypto'
+}: BitcoinBettingWidgetProps) {
     const [amount, setAmount] = useState<string>('');
     const [isTrading, setIsTrading] = useState<boolean>(false);
     const [selectedCandidateId, setSelectedCandidateId] = useState<string>('Yes');
@@ -216,7 +229,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
         if (!onRestartAction) return;
         try {
             await onRestartAction();
-            alert('Bitcoin Market Data Reset via Supabase!');
+            alert(`${marketName} Market Data Reset via Supabase!`);
         } catch (err) {
             console.error('Failed to reset market', err);
         }
@@ -420,7 +433,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                 {/* Header & Stats */}
                 <div className="flex items-center space-x-4 mb-3">
                     <div className="flex items-center space-x-2">
-                        <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">Crypto</span>
+                        <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">{categoryLabel}</span>
                         <span className="text-gray-400 text-xs font-semibold">• Vol ${totalPoolUSDUI.toFixed(0)}</span>
                     </div>
                     {timeLeft && (
@@ -431,10 +444,10 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                 </div>
 
                 <h2 className="text-2xl font-bold text-gray-900 leading-tight mb-2">
-                    Will Bitcoin reach $75k in 24 hours?
+                    {title}
                 </h2>
                 <p className="text-sm text-gray-500 mb-6">
-                    Predict if BTC will hit the target price. Powered by a secure, audited smart contract.
+                    {description}
                 </p>
 
                 {/* Admin Panel */}
@@ -459,7 +472,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                                 onClick={handleStartBetting}
                                 className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all whitespace-nowrap"
                             >
-                                Start Bitcoin Bet
+                                Start {marketName} Bet
                             </button>
 
                             {onRestartAction && (
@@ -467,7 +480,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                                     onClick={handleResetMarket}
                                     className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all whitespace-nowrap sm:ml-auto"
                                 >
-                                    Reset Bitcoin Market
+                                    Reset {marketName} Market
                                 </button>
                             )}
                         </div>
