@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar';
 import BettingWidget, { Candidate } from '@/components/BettingWidget';
 import BitcoinBettingWidget from '@/components/BitcoinBettingWidget';
 
-const CONTRACT_ADDRESS_FED = '0x768bB22c4158fe6f2f96F43D68bD83E0A84AD151';
+const CONTRACT_ADDRESS_FED = '0xEd4F79F27C4C44184F61F349d968C2D2E08108e9';
 const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x403B63B2cF2Cf64A029aB903e4099d713fA6924B'; // fallback if env is missing
 const CONTRACT_ADDRESS_BASE_TWEET = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BASE_TWEET || '0x79c68cFf7D9C1274EFc677901239f81e1aba8D3d';
 
