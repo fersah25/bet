@@ -313,11 +313,23 @@ export default function BettingWidget({
                 args: [candidateString],
                 account: address,
                 value: ethValue,
+                // Adjusting gas slightly or removing gas limit optionally if resolving issues natively, 
+                // but keeping it as requested. Let viem handle exact errors if it reverts.
                 gas: BigInt(300000),
                 chain: baseSepolia,
             });
 
-            // Optimistic Update
+            const publicClient = createPublicClient({
+                chain: baseSepolia,
+                transport: http()
+            });
+
+            const receipt = await publicClient.waitForTransactionReceipt({ hash });
+            if (receipt.status !== 'success') {
+                throw new Error('Transaction reverted on-chain. Status: ' + receipt.status);
+            }
+
+            // Database and Optimistic Update ONLY run if tx is successful
             const newPoolAmount = (selectedCandidate.pool || 0) + amountUSD;
             const newCandidates = candidates.map(c =>
                 c.id === selectedCandidate.id ? { ...c, pool: newPoolAmount } : c
@@ -331,8 +343,8 @@ export default function BettingWidget({
             }
 
         } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-            console.error('Trade failed:', err);
-            alert('Trade failed: ' + (err.shortMessage || 'Please try again.'));
+            console.error('Trade failed details:', err);
+            alert('Transaction Failed: Database not updated.\n' + (err.shortMessage || err.message || ''));
         } finally {
             setIsTrading(false);
         }

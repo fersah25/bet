@@ -301,6 +301,16 @@ export default function BitcoinBettingWidget({
                 chain: baseSepolia,
             });
 
+            const publicClient = createPublicClient({
+                chain: baseSepolia,
+                transport: http()
+            });
+
+            const receipt = await publicClient.waitForTransactionReceipt({ hash });
+            if (receipt.status !== 'success') {
+                throw new Error('Transaction reverted on-chain. Status: ' + receipt.status);
+            }
+
             alert(`Bet Placed for ${selectedCandidateId}! Tx Hash: ${hash.slice(0, 10)}...`);
             setAmount('');
             if (onTradeAction) {
@@ -308,8 +318,8 @@ export default function BitcoinBettingWidget({
             }
             setTimeout(fetchContractData, 5000);
         } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-            console.error('Trade failed:', err);
-            alert('Trade failed: ' + (err.shortMessage || 'Please try again.'));
+            console.error('Trade failed details:', err);
+            alert('Transaction Failed: Database not updated.\n' + (err.shortMessage || err.message || ''));
         } finally {
             setIsTrading(false);
         }
