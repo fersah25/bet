@@ -290,6 +290,26 @@ export default function BitcoinBettingWidget({
             const ethAmount = amountUSD / ETH_PRICE;
             const ethValue = parseEther(ethAmount.toFixed(18));
 
+            const publicClient = createPublicClient({
+                chain: baseSepolia,
+                transport: http()
+            });
+
+            // Simulate the contract call first to catch explicit Solidity reverts natively
+            try {
+                await publicClient.simulateContract({
+                    address: contractAddress as `0x${string}`,
+                    abi: bitcoinBettingAbi,
+                    functionName: 'placeBet',
+                    args: [selectedCandidateId],
+                    account: address,
+                    value: ethValue,
+                });
+            } catch (simErr: any) {
+                console.error("Simulation failed:", simErr);
+                throw new Error("Contract Revert: " + (simErr.shortMessage || simErr.message));
+            }
+
             const hash = await walletClient.writeContract({
                 address: contractAddress as `0x${string}`,
                 abi: bitcoinBettingAbi,
@@ -299,11 +319,6 @@ export default function BitcoinBettingWidget({
                 value: ethValue,
                 gas: BigInt(300000),
                 chain: baseSepolia,
-            });
-
-            const publicClient = createPublicClient({
-                chain: baseSepolia,
-                transport: http()
             });
 
             const receipt = await publicClient.waitForTransactionReceipt({ hash });
