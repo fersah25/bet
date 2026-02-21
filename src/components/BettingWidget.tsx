@@ -410,8 +410,8 @@ export default function BettingWidget({
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex-1">
+        <div className="flex flex-col h-full gap-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex-1 flex flex-col h-full">
                 <div className="flex items-center space-x-4 mb-3">
                     <div className="flex items-center space-x-2">
                         <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">{category}</span>

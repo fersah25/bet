@@ -457,8 +457,9 @@ export default function BitcoinBettingWidget({
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex-1 font-sans">
+        <div className="flex flex-col h-full gap-6">
+            {/* Main Widget Card */}
+            <div className="bg-[#131722] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.2)] border border-[#2a2e39] flex-1 flex flex-col h-full font-sans">
                 {/* Header & Stats */}
                 <div className="flex items-center space-x-4 mb-3">
                     <div className="flex items-center space-x-2">
