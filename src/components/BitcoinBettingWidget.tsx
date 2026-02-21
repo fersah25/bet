@@ -264,6 +264,10 @@ export default function BitcoinBettingWidget({
 
     const handleTrade = async () => {
         if (!amount || isNaN(parseFloat(amount))) return;
+        if (marketResolved || !isBettingActive) {
+            alert('Market is currently closed or already resolved. You cannot place new bets.');
+            return;
+        }
         setIsTrading(true);
 
         try {
@@ -419,10 +423,10 @@ export default function BitcoinBettingWidget({
         return (
             <button
                 onClick={handleTrade}
-                className={`w-full py-3 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading && isBettingActive ? (selectedCandidateId === 'Yes' ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-[#ff4d4d] hover:bg-[#e60000] shadow-red-500/20') : 'bg-gray-300 cursor-not-allowed shadow-none'}`}
-                disabled={!amount || isTrading || !isBettingActive}
+                className={`w-full py-3 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading && isBettingActive && !marketResolved ? (selectedCandidateId === 'Yes' ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-[#ff4d4d] hover:bg-[#e60000] shadow-red-500/20') : 'bg-gray-300 cursor-not-allowed shadow-none'}`}
+                disabled={!amount || isTrading || !isBettingActive || marketResolved}
             >
-                {!isBettingActive ? 'Betting Closed' : isTrading ? 'Processing...' : 'Place Order'}
+                {marketResolved || !isBettingActive ? 'Market Closed' : isTrading ? 'Processing...' : 'Place Order'}
             </button>
         )
     };
@@ -455,8 +459,8 @@ export default function BitcoinBettingWidget({
                     <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-col gap-4">
                         <div className="flex flex-wrap items-center gap-4">
                             <span className="text-orange-800 font-bold text-sm">Admin Controls:</span>
-                            <span className="text-xs font-semibold px-2 py-1 rounded bg-white border border-gray-200 text-gray-700">
-                                Target: {marketResolved ? 'Resolved' : isBettingActive ? 'Open' : 'Closed'}
+                            <span className={`text-xs font-bold px-2 py-1 rounded border ${(!marketResolved && isBettingActive) ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                Status: {(!marketResolved && isBettingActive) ? 'OPEN' : 'CLOSED'}
                             </span>
                         </div>
 

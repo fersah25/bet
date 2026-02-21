@@ -270,6 +270,10 @@ export default function BettingWidget({
 
     const handleTrade = async () => {
         if (!amount || isNaN(parseFloat(amount)) || !selectedCandidate) return;
+        if (marketResolved || !isBettingActive) {
+            alert('Market is currently closed or already resolved. You cannot place new bets.');
+            return;
+        }
         setIsTrading(true);
 
         try {
@@ -370,10 +374,10 @@ export default function BettingWidget({
         return (
             <button
                 onClick={handleTrade}
-                className={`w-full py-3 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading && isBettingActive ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'}`}
-                disabled={!amount || isTrading || !isBettingActive}
+                className={`w-full py-3 text-white font-bold text-[15px] rounded-xl shadow-lg transition-all active:scale-[0.98] ${amount && !isTrading && isBettingActive && !marketResolved ? 'bg-[#00d395] hover:bg-[#00c087] shadow-emerald-500/20' : 'bg-gray-300 cursor-not-allowed shadow-none'}`}
+                disabled={!amount || isTrading || !isBettingActive || marketResolved}
             >
-                {!isBettingActive ? 'Betting Closed' : isTrading ? 'Processing...' : 'Place Order'}
+                {marketResolved || !isBettingActive ? 'Market Closed' : isTrading ? 'Processing...' : 'Place Order'}
             </button>
         )
     }
@@ -402,6 +406,9 @@ export default function BettingWidget({
                 {allowAdminPanel && authenticated && wallet && wallet.address.toLowerCase() === contractOwner && (
                     <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-wrap items-center gap-4">
                         <span className="text-orange-800 font-bold text-sm">Admin:</span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded border ${(!marketResolved && isBettingActive) ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                            Status: {(!marketResolved && isBettingActive) ? 'OPEN' : 'CLOSED'}
+                        </span>
                         <input
                             type="number"
                             value={durationInput}
