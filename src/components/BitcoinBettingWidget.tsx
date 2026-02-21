@@ -202,16 +202,23 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
                 chain: baseSepolia,
             });
 
-            alert(`Betting Started / Restarted! Tx Hash: ${hash.slice(0, 10)}...`);
+            alert(`Betting Started! Tx Hash: ${hash.slice(0, 10)}...`);
             setMarketResolved(false);
             setWinningOutcome('');
-            if (onRestartAction) {
-                await onRestartAction();
-            }
             setTimeout(fetchContractData, 5000);
         } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error(err);
             alert('Failed to start betting: ' + (err.shortMessage || err.message));
+        }
+    };
+
+    const handleResetMarket = async () => {
+        if (!onRestartAction) return;
+        try {
+            await onRestartAction();
+            alert('Bitcoin Market Data Reset via Supabase!');
+        } catch (err) {
+            console.error('Failed to reset market', err);
         }
     };
 
@@ -432,25 +439,38 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
 
                 {/* Admin Panel */}
                 {authenticated && wallet && wallet.address.toLowerCase() === contractOwner && (
-                    <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-wrap items-center gap-4">
-                        <span className="text-orange-800 font-bold text-sm">Admin:</span>
-                        {(!isBettingActive || marketResolved) && (
-                            <>
-                                <input
-                                    type="number"
-                                    value={durationInput}
-                                    onChange={e => setDurationInput(e.target.value)}
-                                    className="border border-orange-300 p-1.5 rounded w-20 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                    placeholder="Mins"
-                                />
+                    <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-col gap-4">
+                        <div className="flex flex-wrap items-center gap-4">
+                            <span className="text-orange-800 font-bold text-sm">Admin Controls:</span>
+                            <span className="text-xs font-semibold px-2 py-1 rounded bg-white border border-gray-200 text-gray-700">
+                                Target: {marketResolved ? 'Resolved' : isBettingActive ? 'Open' : 'Closed'}
+                            </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full">
+                            <input
+                                type="number"
+                                value={durationInput}
+                                onChange={e => setDurationInput(e.target.value)}
+                                className="border border-orange-300 p-1.5 rounded w-20 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                placeholder="Mins"
+                            />
+                            <button
+                                onClick={handleStartBetting}
+                                className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all whitespace-nowrap"
+                            >
+                                Start Bitcoin Bet
+                            </button>
+
+                            {onRestartAction && (
                                 <button
-                                    onClick={handleStartBetting}
-                                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all"
+                                    onClick={handleResetMarket}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 text-sm rounded transition-all whitespace-nowrap sm:ml-auto"
                                 >
                                     Reset Bitcoin Market
                                 </button>
-                            </>
-                        )}
+                            )}
+                        </div>
                         {isBettingActive && (
                             <span className="text-gray-500 text-sm">Betting is live. Cannot resolve yet.</span>
                         )}
