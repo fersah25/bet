@@ -7,7 +7,7 @@ import BettingWidget, { Candidate } from '@/components/BettingWidget';
 import BitcoinBettingWidget from '@/components/BitcoinBettingWidget';
 
 const CONTRACT_ADDRESS_FED = '0xd10Ab59c208914BEd5209f5904859D954e9903ea';
-const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x768bB22c4158fe6f2f96F43D68bD83E0A84AD151'; // fallback if env is missing
+const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x403B63B2cF2Cf64A029aB903e4099d713fA6924B'; // fallback if env is missing
 
 export default function Home() {
   const [fedCandidates, setFedCandidates] = useState<Candidate[]>([]);

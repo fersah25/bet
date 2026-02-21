@@ -36,7 +36,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
     // UI states
     const [timeLeft, setTimeLeft] = useState<string>('');
     const [isBettingActive, setIsBettingActive] = useState<boolean>(false);
-    const [durationInput, setDurationInput] = useState<string>('60');
+    const [durationInput, setDurationInput] = useState<string>('1440');
 
     const { login, authenticated } = usePrivy();
     const { wallets } = useWallets();
@@ -196,7 +196,7 @@ export default function BitcoinBettingWidget({ contractAddress, initialCandidate
             const hash = await walletClient.writeContract({
                 address: contractAddress as `0x${string}`,
                 abi: bitcoinBettingAbi,
-                functionName: 'startBetting',
+                functionName: 'startNewRound',
                 args: [BigInt(durationInput)],
                 account: address,
                 chain: baseSepolia,

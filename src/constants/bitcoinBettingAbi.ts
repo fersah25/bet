@@ -160,7 +160,7 @@ export const bitcoinBettingAbi = [
                 "type": "uint256"
             }
         ],
-        "name": "startBetting",
+        "name": "startNewRound",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
