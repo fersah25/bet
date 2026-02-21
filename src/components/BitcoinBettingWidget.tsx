@@ -459,7 +459,7 @@ export default function BitcoinBettingWidget({
     return (
         <div className="flex flex-col h-full gap-6">
             {/* Main Widget Card */}
-            <div className="bg-[#131722] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.2)] border border-[#2a2e39] flex-1 flex flex-col h-full font-sans">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex-1 flex flex-col h-full font-sans">
                 {/* Header & Stats */}
                 <div className="flex items-center space-x-4 mb-3">
                     <div className="flex items-center space-x-2">
@@ -551,7 +551,7 @@ export default function BitcoinBettingWidget({
                             return (
                                 <div
                                     key={candidate.id}
-                                    className={`group relative overflow-hidden flex items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.name ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
+                                    className={`group relative overflow-hidden flex items-center p-3 rounded-xl border transition-all cursor-pointer ${selectedCandidateId === candidate.name ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-gray-50 border-gray-200 hover:border-gray-300 hover:shadow-sm'}`}
                                     onClick={() => setSelectedCandidateId(candidate.name)}
                                 >
                                     {candidate?.image_url ? (
@@ -577,7 +577,7 @@ export default function BitcoinBettingWidget({
                     </div>
 
                     {/* Right: Order Ticket */}
-                    <div className="bg-gray-50/50 rounded-xl border border-gray-100 p-4">
+                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
                                 <span className="text-xs font-bold text-gray-500 uppercase">Buy Order</span>
