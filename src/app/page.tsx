@@ -9,11 +9,13 @@ import BitcoinBettingWidget from '@/components/BitcoinBettingWidget';
 const CONTRACT_ADDRESS_FED = '0xEd4F79F27C4C44184F61F349d968C2D2E08108e9';
 const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x403B63B2cF2Cf64A029aB903e4099d713fA6924B'; // fallback if env is missing
 const CONTRACT_ADDRESS_BASE_TWEET = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BASE_TWEET || '0x79c68cFf7D9C1274EFc677901239f81e1aba8D3d';
+const CONTRACT_ADDRESS_DUBAI_WEATHER = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_DUBAI_WEATHER || '0xcaeD4a39bc69D81675C8dA5D6aC80eC05a2f641d';
 
 export default function Home() {
   const [fedCandidates, setFedCandidates] = useState<Candidate[]>([]);
   const [btcCandidates, setBtcCandidates] = useState<Candidate[]>([]);
   const [baseTweetCandidates, setBaseTweetCandidates] = useState<Candidate[]>([]);
+  const [dubaiWeatherCandidates, setDubaiWeatherCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -47,16 +49,19 @@ export default function Home() {
         setFedCandidates(mappedCandidates.filter(c => c.category === 'fed'));
         setBtcCandidates(mappedCandidates.filter(c => c.category === 'bitcoin'));
         setBaseTweetCandidates(mappedCandidates.filter(c => c.category === 'base_tweet'));
+        setDubaiWeatherCandidates(mappedCandidates.filter(c => c.category === 'dubai_weather'));
       } else {
         setFedCandidates([]);
         setBtcCandidates([]);
         setBaseTweetCandidates([]);
+        setDubaiWeatherCandidates([]);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
       setFedCandidates([]);
       setBtcCandidates([]);
       setBaseTweetCandidates([]);
+      setDubaiWeatherCandidates([]);
     } finally {
       setIsLoading(false);
     }
@@ -126,6 +131,32 @@ export default function Home() {
     try {
       const { error } = await supabase.rpc('reset_base_tweet_market');
       if (error) console.error('Supabase base_tweet restart update failed:', error);
+    } catch (err) {
+      console.error('Supabase restart update failed:', err);
+    }
+  };
+
+  const handleDubaiWeatherTradeAction = async (candidateName: string, tradeAmount: number) => {
+    const candidate = dubaiWeatherCandidates.find((c) => c.name === candidateName);
+    if (!candidate) return;
+    const newPoolAmount = (candidate.pool || 0) + tradeAmount;
+
+    try {
+      const { error } = await supabase
+        .from('markets')
+        .update({ pool_amount: newPoolAmount })
+        .eq('id', candidate.id);
+
+      if (error) console.error('Supabase update error:', error);
+    } catch (err) {
+      console.error('Supabase update failed:', err);
+    }
+  };
+
+  const handleDubaiWeatherRestartAction = async () => {
+    try {
+      const { error } = await supabase.rpc('reset_dubai_weather_market');
+      if (error) console.error('Supabase dubai_weather restart update failed:', error);
     } catch (err) {
       console.error('Supabase restart update failed:', err);
     }
@@ -201,6 +232,20 @@ export default function Home() {
               title="@base Today's Tweet Count"
               description="Will @base post 10 or more tweets today? Powered by a secure, audited smart contract."
               categoryLabel="Social"
+            />
+          </div>
+
+          {/* Fourth Column: Dubai Weather Market */}
+          <div className="flex flex-col h-full space-y-6">
+            <BitcoinBettingWidget
+              contractAddress={CONTRACT_ADDRESS_DUBAI_WEATHER}
+              initialCandidates={dubaiWeatherCandidates}
+              onTradeAction={handleDubaiWeatherTradeAction}
+              onRestartAction={handleDubaiWeatherRestartAction}
+              marketName="Dubai Weather"
+              title="Will it rain in Dubai in 3 days?"
+              description="Predict if it will rain in Dubai in 3 days. Powered by a secure, audited smart contract."
+              categoryLabel="Weather"
             />
           </div>
         </div>
