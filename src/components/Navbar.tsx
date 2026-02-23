@@ -16,8 +16,8 @@ export default function Navbar() {
         <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
             <div className="flex items-center space-x-8">
                 <Link href="/" className="flex items-center space-x-2">
-                    <div className="bg-[#00d395] text-white font-bold px-2 py-1 rounded text-lg">B</div>
-                    <span className="text-xl font-bold tracking-tight text-gray-900">BaseBet</span>
+                    <div className="bg-[#0052FF] text-white font-bold px-2 py-1 rounded text-lg">B</div>
+                    <span className="text-xl font-bold tracking-tight text-[#0052FF]">BaseBet</span>
                 </Link>
                 <div className="hidden md:flex items-center space-x-6">
                     <Link href="/" className="text-gray-600 font-semibold hover:text-gray-900 transition-colors">Economics</Link>
