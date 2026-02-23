@@ -3,6 +3,7 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { useUserSync } from '@/hooks/useUserSync';
 import { useState } from 'react';
+import Link from 'next/link';
 
 export default function Navbar() {
     const { login, logout, authenticated, user } = usePrivy();
@@ -13,9 +14,17 @@ export default function Navbar() {
 
     return (
         <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
-            <div className="flex items-center space-x-2">
-                <div className="bg-[#00d395] text-white font-bold px-2 py-1 rounded text-lg">K</div>
-                <span className="text-xl font-bold tracking-tight text-gray-900">KalshiClone</span>
+            <div className="flex items-center space-x-8">
+                <Link href="/" className="flex items-center space-x-2">
+                    <div className="bg-[#00d395] text-white font-bold px-2 py-1 rounded text-lg">K</div>
+                    <span className="text-xl font-bold tracking-tight text-gray-900">KalshiClone</span>
+                </Link>
+                <div className="hidden md:flex items-center space-x-6">
+                    <Link href="/markets/economics" className="text-gray-600 font-semibold hover:text-gray-900 transition-colors">Economics</Link>
+                    <Link href="/markets/crypto" className="text-gray-600 font-semibold hover:text-gray-900 transition-colors">Crypto</Link>
+                    <Link href="/markets/social" className="text-gray-600 font-semibold hover:text-gray-900 transition-colors">Social</Link>
+                    <Link href="/markets/weather" className="text-gray-600 font-semibold hover:text-gray-900 transition-colors">Weather</Link>
+                </div>
             </div>
             <div className="flex items-center gap-4">
                 {!authenticated ? (
