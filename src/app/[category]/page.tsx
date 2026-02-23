@@ -7,12 +7,11 @@ import Navbar from '@/components/Navbar';
 import BettingWidget, { Candidate } from '@/components/BettingWidget';
 import BitcoinBettingWidget from '@/components/BitcoinBettingWidget';
 
-const CONTRACT_ADDRESS_FED = '0xEd4F79F27C4C44184F61F349d968C2D2E08108e9';
 const CONTRACT_ADDRESS_BTC = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BTC || '0x403B63B2cF2Cf64A029aB903e4099d713fA6924B';
 const CONTRACT_ADDRESS_BASE_TWEET = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_BASE_TWEET || '0x79c68cFf7D9C1274EFc677901239f81e1aba8D3d';
 const CONTRACT_ADDRESS_DUBAI_WEATHER = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_DUBAI_WEATHER || '0xcaeD4a39bc69D81675C8dA5D6aC80eC05a2f641d';
 
-export default function MarketCategoryPage() {
+export default function CategoryPage() {
     const params = useParams();
     const categoryParam = typeof params?.category === 'string' ? params.category : '';
     const cat = categoryParam.toLowerCase();
@@ -22,10 +21,9 @@ export default function MarketCategoryPage() {
 
     // Map the URL param to the DB category string
     const dbCategoryMap: Record<string, string> = {
-        economics: 'fed',
         crypto: 'bitcoin',
         social: 'base_tweet',
-        weather: 'dubai_weather'
+        weather: 'weather'
     };
 
     const dbCategory = dbCategoryMap[cat] || cat;
@@ -73,11 +71,7 @@ export default function MarketCategoryPage() {
     };
 
     const handleTradeAction = async (identifier: string, tradeAmount: number) => {
-        // Determine whether to match by id or name
-        // For Fed it matches by id, for others by name
-        const candidate = candidates.find((c) =>
-            cat === 'economics' ? c.id === identifier : c.name === identifier
-        );
+        const candidate = candidates.find((c) => c.name === identifier);
         if (!candidate) return;
         const newPoolAmount = (candidate.pool || 0) + tradeAmount;
 
@@ -95,15 +89,11 @@ export default function MarketCategoryPage() {
 
     const handleRestartAction = async () => {
         try {
-            if (dbCategory === 'fed') {
-                for (const candidate of candidates) {
-                    await supabase.from('markets').update({ pool_amount: 0 }).eq('id', candidate.id);
-                }
-            } else if (dbCategory === 'bitcoin') {
+            if (dbCategory === 'bitcoin') {
                 await supabase.rpc('reset_bitcoin_market');
             } else if (dbCategory === 'base_tweet') {
                 await supabase.rpc('reset_base_tweet_market');
-            } else if (dbCategory === 'dubai_weather') {
+            } else if (dbCategory === 'weather' || dbCategory === 'dubai_weather') {
                 await supabase.rpc('reset_dubai_weather_market');
             }
         } catch (err) {
@@ -125,20 +115,7 @@ export default function MarketCategoryPage() {
 
     let widget = null;
 
-    if (cat === 'economics') {
-        widget = (
-            <BettingWidget
-                title="Who will Trump nominate as Fed Chair?"
-                description="Predict the next Fed Chairman. The total pool will be distributed equally among the winning wallets when the market resolves."
-                category="Economics"
-                contractAddress={CONTRACT_ADDRESS_FED}
-                initialCandidates={candidates}
-                onTradeAction={handleTradeAction}
-                onRestartAction={handleRestartAction}
-                allowAdminPanel={true}
-            />
-        );
-    } else if (cat === 'crypto') {
+    if (cat === 'crypto') {
         widget = (
             <BitcoinBettingWidget
                 contractAddress={CONTRACT_ADDRESS_BTC}
@@ -189,8 +166,12 @@ export default function MarketCategoryPage() {
     return (
         <main className="min-h-screen bg-gray-50 text-gray-900 font-sans pb-12">
             <Navbar />
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {widget}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                    <div className="flex flex-col h-full space-y-6">
+                        {widget}
+                    </div>
+                </div>
             </div>
         </main>
     );
